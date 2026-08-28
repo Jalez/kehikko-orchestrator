@@ -132,6 +132,24 @@ export const MANIFEST: Manifest = manifestSchema.parse({
   name: 'Orchestrator',
   version: VERSION,
   summary: 'Start a session on what you picked, and watch what it says.',
+  /**
+   * What an agent should do about this module, given that it is here.
+   *
+   * Not the summary: that says what this IS, for a person deciding whether to
+   * place it. This says what its PRESENCE OBLIGES, and a host composes it into
+   * the prompt every agent on the canvas is handed — attributed to this module,
+   * because it is this module's claim rather than the host's.
+   *
+   * This one is addressed partly to sessions started BY this module, which is
+   * unusual and worth noting: the agent reading it may be the thing this module
+   * spawned.
+   */
+  guidance:
+    'Sessions are started here on the references picked out on this kehikko. If you are one of ' +
+    'those sessions, the references you were started on are the scope of your work — do not widen ' +
+    'it because something nearby looked wrong; write down what you noticed instead. Your ' +
+    'transcript is being read live by the person who started you, so say what you are doing as ' +
+    'you do it rather than only at the end.',
   entry: '/app',
   modes: [{ id: 'orchestrator', label: 'Sessions', scope: 'epic' }],
   extensions: { emits: [], consumes: [] },
