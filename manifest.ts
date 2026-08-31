@@ -4,6 +4,31 @@ export const ID = 'roadmap.orchestrator'
 export const VERSION = '1.0.0'
 
 /**
+ * The port this module would rather have, said once and beside the name it goes
+ * with.
+ *
+ * It used to be said twice — `--port "${PORT:-7850}"` on the last line of
+ * `run.sh` and `Number(process.env.PORT ?? 7850)` in `register.ts` — with
+ * nothing keeping the two in step, and a third copy sitting in
+ * `~/.roadmap/modules` from whenever somebody last ran the second. Moving this
+ * module was two edits and a thing to remember.
+ *
+ * It is here rather than in `vite.config.ts` because `register.ts` needs it too,
+ * and importing a Vite config to read one number would build the whole plugin
+ * list, mint this process's write ticket and read the session scope on the way
+ * to finding out what to write down.
+ *
+ * It is a PREFERENCE and not a promise. 7820 through 7960 belong to the other
+ * modules on this machine, and if something else holds 7850 when this starts
+ * then `serves()` moves to the next free port and rewrites the registration to
+ * match — see `roadmap-module-protocol/serve`. A host reads the registry, so the
+ * registry is what has to be true; this number is only where to start looking.
+ * That matters more here than in most modules: a host that cannot reach this one
+ * is a host with no roster and no way to stop a session it can see running.
+ */
+export const PREFERRED_PORT = 7850
+
+/**
  * What this module says about itself when a host asks.
  *
  * The manifest is the smallest half of this program and the only half a host

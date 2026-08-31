@@ -4,9 +4,11 @@ import { resolve } from 'node:path'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { WELL_KNOWN } from 'roadmap-module-protocol'
+import { serves } from 'roadmap-module-protocol/serve'
 import { defineConfig, type Plugin } from 'vite'
 
 import { MANIFEST, TICKET, answer } from './doors.ts'
+import { ID, PREFERRED_PORT } from './manifest.ts'
 import { page } from './page.ts'
 import { readScope } from './scope.ts'
 
@@ -205,10 +207,28 @@ async function body(request: IncomingMessage): Promise<Record<string, unknown> |
  * that host wrote down. Absolute asset paths are correct in the first case and
  * a guess in the second; relative ones are a fact in both, because the browser
  * resolves them against the document it just fetched.
+ *
+ * ## And no `server.port`, because `serves()` decides it
+ *
+ * 7850 used to be written on the `bunx vite` line in `run.sh` and again in
+ * `register.ts`, and true in neither the moment something else held the port:
+ * `--strictPort` meant this module printed `Error: Port 7850 is already in use`
+ * and exited 1. Here that is worse than elsewhere — a host that cannot reach
+ * this module has no roster, so a session it started stays running with nothing
+ * on screen offering to stop it. The number is `PREFERRED_PORT` in `manifest.ts`
+ * now, said once beside the id.
+ *
+ * `serves()` is FIRST in the plugin list because it has to claim a port before
+ * anything else in this config asks for one. A free 7850 is taken in silence;
+ * this module already answering there ends the start cleanly rather than making
+ * a SECOND roster over the same sessions; anything else is a loud move to the
+ * next free port with the registration rewritten to the port the server ACTUALLY
+ * bound, read off `httpServer.address()` after `listening` rather than off what
+ * was asked for.
  */
 export default defineConfig({
   base: './',
-  plugins: [doors(), react(), tailwindcss()],
+  plugins: [serves({ id: ID, prefer: PREFERRED_PORT }), doors(), react(), tailwindcss()],
   resolve: { alias: { '@': resolve(import.meta.dirname, 'src') } },
   build: { outDir: 'dist', emptyOutDir: true },
 })
