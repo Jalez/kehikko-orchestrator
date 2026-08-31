@@ -27,7 +27,7 @@ export const VERSION = '1.0.0'
  *   more, which is honest and slightly less useful.
  * - **`selection:set` — not declared.** This module is a consumer of the
  *   canvas's selection, not an author of it. A start button that also moved
- *   everybody else's selection would be a pane reaching sideways.
+ *   everybody else's selection would be a container reaching sideways.
  * - **`epics:read` — not declared.** There is nothing on this page that is per
  *   epic except the selection, and the selection arrives without being asked
  *   for. A picker over epics would be a control for a state this module does
@@ -51,12 +51,12 @@ export const VERSION = '1.0.0'
  * ## `prompt: true`, and what it is not
  *
  * This is the "a prompt would be used here" signal, and it is a declaration
- * rather than a demand. It is how a host knows to list this pane among the
+ * rather than a demand. It is how a host knows to list this container among the
  * places a prompt can be aimed, and how it knows to show that one is expected.
  *
  * There is deliberately no prompt editor in this module. The modal belongs to
  * the frame: framed, an editor here would be clipped by the iframe, and a
- * person aiming a prompt at this pane from another one could not reach it at
+ * person aiming a prompt at this container from another one could not reach it at
  * all. What arrives is `context.prompt`, one string composed by the host, and
  * this module does not merge fragments because it never sees any. Null is an
  * ordinary state and the page says, in words, what it will use instead.

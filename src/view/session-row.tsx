@@ -35,7 +35,7 @@ const AGO: [number, string][] = [
 /**
  * How long ago, in one or two characters.
  *
- * Space is the reason. A 240px pane cannot spare "about three hours ago" beside
+ * Space is the reason. A 240px container cannot spare "about three hours ago" beside
  * a name, and a person scanning a roster wants the ordering rather than the
  * duration. Under a minute is "now" rather than "0m", because a session that
  * started four seconds ago being labelled zero of anything reads as broken.

@@ -52,7 +52,7 @@ export interface Roadmap {
    */
   selection: string[]
   /**
-   * The prompt the host composed for this pane, or null.
+   * The prompt the host composed for this container, or null.
    *
    * One string. This module declares `prompt: true` and therefore must work
    * when there is none, because on a host that offers no prompts there always
@@ -61,7 +61,7 @@ export interface Roadmap {
    * would be told is readable either way.
    */
   prompt: string | null
-  /** Whether the host has pinned this pane. Said out loud, because it is. */
+  /** Whether the host has pinned this container. Said out loud, because it is. */
   pinned: boolean
   /**
    * ref -> what it is, from `live.get`, for the refs this page will name.
@@ -232,10 +232,10 @@ export function useRoadmap(id: string): Roadmap {
       onContext: (context) => held(context, false),
       /* Nothing on this page is a reference, so there is nothing to walk to.
          Answered rather than left to the host's timeout — see the backstop in
-         `host.ts`; a hundred milliseconds of a pane doing nothing is worse than
+         `host.ts`; a hundred milliseconds of a container doing nothing is worse than
          a sentence. */
       onGoto: (_message, answerBack) =>
-        answerBack(false, 'This pane lists sessions rather than references, so there is nothing here to walk to.'),
+        answerBack(false, 'This container lists sessions rather than references, so there is nothing here to walk to.'),
     })
     ready = true
     if (early.arrival) arrived(...early.arrival)

@@ -14,7 +14,7 @@ import { ID } from '../manifest.ts'
  * ## What is drawn when framed, and what is not
  *
  * Not the module's name, and not its summary. The host shows the manifest's
- * `summary` as a tooltip on the pane header, and a page that printed its own
+ * `summary` as a tooltip on the container header, and a page that printed its own
  * title inside the frame would be saying the same sentence twice in a column
  * 240px wide. Unframed — opened in a tab, which is a real way to run this — the
  * heading is drawn, because then nothing else is saying what this is.
@@ -144,7 +144,7 @@ export function App() {
   const openRow = rows.find((r) => r.sessionId === open) ?? null
 
   return (
-    <div className="pane flex h-full min-w-0 flex-col text-sm">
+    <div className="container flex h-full min-w-0 flex-col text-sm">
       {/* Unframed only. See the note at the top of this file. */}
       {wire.at === 'unhosted' ? (
         <header className="min-w-0 border-b px-2 py-1.5">
@@ -251,7 +251,7 @@ function Legend({
       {/* Pinning is said out loud because the protocol's whole argument for the
           field is that a module pinned silently cannot tell a person's pin from
           a canvas that has not moved. */}
-      {pinned ? <p className="truncate">Held: this pane keeps {epic ?? 'what it was last told'} until unpinned.</p> : null}
+      {pinned ? <p className="truncate">Held: this container keeps {epic ?? 'what it was last told'} until unpinned.</p> : null}
     </div>
   )
 }

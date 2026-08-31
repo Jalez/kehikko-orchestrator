@@ -50,7 +50,7 @@ import { open, readdir, stat } from 'node:fs/promises'
  * latency, bounded by the poll interval, and the loss of the raw terminal
  * rendering, which is a thing to be grateful for rather than to mourn: this is
  * structured data, and drawing it as DOM means it can be searched, wrapped in a
- * 240px pane, and read a week later.
+ * 240px container, and read a week later.
  *
  * ## What was extended, and why
  *
@@ -216,7 +216,7 @@ function textOf(content: unknown): string {
  * How long any single event's text may be before it is cut.
  *
  * A `Read` of a thousand-line file arrives here whole. Rendering it whole in a
- * 300px pane is a scrollbar with a conversation somewhere inside it, and
+ * 300px container is a scrollbar with a conversation somewhere inside it, and
  * shipping it over the wire on every poll is a megabyte a second for something
  * nobody is reading. Cut with the cut SAID, so a reader knows there was more
  * rather than believing the tool returned forty lines.

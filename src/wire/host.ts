@@ -100,7 +100,7 @@ const ANSWER_WITHIN_MS = 12_000
 export interface HostEvents {
   /** The greeting arrived, carrying the context and whatever the host kept for us. */
   onHello?: (context: ModuleContext, state: string | null) => void
-  /** The reader switched epics, changed the selection, wrote a prompt, or pinned this pane. */
+  /** The reader switched epics, changed the selection, wrote a prompt, or pinned this container. */
   onContext?: (context: ModuleContext) => void
   /**
    * "Go to this reference." The answer is not optional and not deferrable: the
@@ -219,7 +219,7 @@ export function connect(id: string, events: HostEvents = {}, source: MessageSour
       /* Answered exactly once, whatever the listener does — including nothing,
          including throwing. The host is waiting on this and will time out into
          "not found"; a module that leaves it to the timeout has turned a
-         hundred milliseconds into a reader watching a pane do nothing. */
+         hundred milliseconds into a reader watching a container do nothing. */
       let answered = false
       const answer = (found: boolean, why = '') => {
         if (answered) return

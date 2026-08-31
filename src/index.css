@@ -125,10 +125,10 @@
 /*
  * Every region that lays itself out is a container.
  *
- * Small panes are the normal case here — 220 to 400px wide — and a viewport
+ * Small containers are the normal case here — 220 to 400px wide — and a viewport
  * breakpoint is the wrong instrument for them: the viewport is the host's
  * window, which is large, while the frame this page is drawn in is a column
- * beside three others. A `md:` prefix in a 240px pane lays out for a screen
+ * beside three others. A `md:` prefix in a 240px container lays out for a screen
  * nobody is looking at, so there is not one in this module.
  *
  * The rule that keeps it honest is `min-w-0` on flex children, which appears
@@ -136,7 +136,7 @@
  * sets the minimum width of the whole column, and the host's canvas ends up
  * scrolling sideways for one line of somebody's transcript.
  */
-.pane {
+.container {
   container-type: inline-size;
 }
 
@@ -147,10 +147,10 @@
  * of tools. `overflow-wrap: anywhere` rather than `break-word`, because the
  * strings that overflow here have no spaces in them at all — a 200-character
  * path is one word as far as the line breaker is concerned, and `break-word`
- * leaves it alone until it has already pushed the pane wide.
+ * leaves it alone until it has already pushed the container wide.
  *
  * `white-space: pre-wrap` keeps the shape a tool wrote — an indented block, a
- * table of file sizes — while still wrapping at the pane's edge rather than
+ * table of file sizes — while still wrapping at the container's edge rather than
  * scrolling the page.
  */
 .said {

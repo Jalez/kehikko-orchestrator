@@ -5,7 +5,7 @@ import { execFile } from 'node:child_process'
  *
  * Salvaged from `roadmap/src/sessions.ts`, which is where the argument below
  * was worked out, and kept close to the original: two copies of a roster that
- * disagreed about what "busy" means would be two panes telling a person
+ * disagreed about what "busy" means would be two containers telling a person
  * different things about the same process.
  *
  * Better than asking agents to announce themselves: `claude agents --json`

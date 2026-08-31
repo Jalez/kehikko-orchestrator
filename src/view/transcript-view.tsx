@@ -13,7 +13,7 @@ import { cn } from '@/lib/utils.ts'
  * on it. Rendering that through a terminal emulator would mean flattening
  * structure into escape sequences and then asking a program to guess the
  * structure back out. What is drawn instead is the structure — which is
- * selectable, searchable by the browser's own find, wrappable in a 240px pane,
+ * selectable, searchable by the browser's own find, wrappable in a 240px container,
  * and readable a week later.
  *
  * The one thing a terminal would give that this does not is the exact glyphs

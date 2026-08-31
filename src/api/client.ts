@@ -94,7 +94,7 @@ export interface ScopeSaid {
 /**
  * One fetch, with the failure turned into a value.
  *
- * A thrown `TypeError: Failed to fetch` in a component is a blank pane and a
+ * A thrown `TypeError: Failed to fetch` in a component is a blank container and a
  * line in a console nobody has open. What every caller here wants instead is a
  * sentence, so a dead server reads the same way as a refusal: something on
  * screen saying what did not happen.

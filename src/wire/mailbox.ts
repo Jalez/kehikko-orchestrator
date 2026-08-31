@@ -17,7 +17,7 @@
  * application is not necessarily ready then. This page is React, and React
  * installs its listener inside an effect, which runs strictly after `load`. So
  * the greeting arrives, is posted at a window nobody is listening to, and is
- * gone. The pane reads "loaded its page and did not answer the host's
+ * gone. The container reads "loaded its page and did not answer the host's
  * greeting" — true, and no hint that the greeting arrived a few hundred
  * milliseconds before anybody was there to hear it. That has cost this codebase
  * days, and it bit two modules again today.

@@ -12,14 +12,14 @@ import { Button } from '@/components/ui/button.tsx'
  * There is no prompt EDITOR in this module — no place to write a prompt from
  * scratch, no store of prompts, no template list. Prompts are the host's job:
  * the dialog belongs to the frame so it is not clipped by the iframe, and so
- * one pane can aim a prompt at another. What arrives here is `context.prompt`,
- * one string the host already composed out of every pane aiming at this one,
+ * one container can aim a prompt at another. What arrives here is `context.prompt`,
+ * one string the host already composed out of every container aiming at this one,
  * each fragment headed `## from <module id>`. This module does not merge
  * fragments because it never sees any.
  *
  * What this box is instead is the LAST LOOK. Somebody about to spawn an agent
  * in a repository they care about should be able to read the exact characters
- * it will be told, and change them, without leaving the pane — a session
+ * it will be told, and change them, without leaving the container — a session
  * started on a prompt nobody read is the failure this whole panel exists to
  * prevent. So the composed text is put in a textarea, the person may edit it,
  * and what is posted is what is in the box.
@@ -31,7 +31,7 @@ import { Button } from '@/components/ui/button.tsx'
  *
  * ## Why a null prompt is not disabled
  *
- * `context.prompt` is null on any host that offers no prompt for this pane, and
+ * `context.prompt` is null on any host that offers no prompt for this container, and
  * the protocol says a module declaring `prompt` must work when there is none.
  * So the box fills with `NO_PROMPT_FALLBACK` instead — visibly, in the same
  * place, with a line saying that is what happened. Greying the button out would
@@ -97,13 +97,13 @@ export function StartPanel({
       ) : (
         <p className="text-muted-foreground mt-1 text-[11px]">
           Nothing is selected on the canvas, so this session would be started with no references. Pick some in another
-          pane and they arrive here.
+          container and they arrive here.
         </p>
       )}
 
       {!composed.fromHost ? (
         <p className="text-muted-foreground mt-1 text-[10px]">
-          No prompt was written for this pane, so the text below is this module’s own default. Edit it, or write one in
+          No prompt was written for this container, so the text below is this module’s own default. Edit it, or write one in
           the host — the dialog is the frame’s, not this module’s.
         </p>
       ) : null}

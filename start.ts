@@ -80,7 +80,7 @@ export interface Started {
  * Start it, and say what the kernel said.
  *
  * `detached` with its own process group, `stdio: 'ignore'`, `unref` — the
- * session outlives this module, which is the point: closing the pane must not
+ * session outlives this module, which is the point: closing the container must not
  * kill somebody's agent mid-edit. The consequence is that this module cannot
  * stop what it started, and it does not offer to. `claude` has its own way to
  * end a session and a button here that killed a process group would be this

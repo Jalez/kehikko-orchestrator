@@ -21,7 +21,7 @@ describe('the manifest', () => {
     expect(speaks(MANIFEST.declares.protocol, PROTOCOL + 1)).toBe(false)
   })
 
-  test('declares a prompt, which is what makes this pane a target for one', () => {
+  test('declares a prompt, which is what makes this container a target for one', () => {
     expect(MANIFEST.declares.prompt).toBe(true)
   })
 

@@ -38,7 +38,7 @@ export function runToken(refs: readonly string[]): string {
 /**
  * What a session started with no prompt is told.
  *
- * `context.prompt` is null on any host that offers no prompt for this pane, and
+ * `context.prompt` is null on any host that offers no prompt for this container, and
  * the protocol says so plainly: a module declaring `prompt` must work when
  * there is none, because on such a host there always will be none. So this is
  * an ordinary state rather than an error, and the page prints this text in the
@@ -73,7 +73,7 @@ export interface Composed {
  * ## This is not fragment merging
  *
  * The protocol is explicit that a module receives ONE string and does not merge
- * fragments. Several panes may each aim something at this one; the host has
+ * fragments. Several containers may each aim something at this one; the host has
  * already composed them, each fragment headed `## from <module id>`, and what
  * arrives is the result. Deciding how fragments combine is a policy question
  * about somebody's own canvas that three modules would answer three ways, and
@@ -85,7 +85,7 @@ export interface Composed {
  * module adds the one fact it holds that the host's composer did not: which
  * references this session is for, spelled as the canvas spells them, with their
  * kind where `live.get` supplied one. That is not another author's fragment. It
- * is the selection, which is the other half of what this pane was given, and a
+ * is the selection, which is the other half of what this container was given, and a
  * session started without it would be told to do something to nothing in
  * particular.
  *
