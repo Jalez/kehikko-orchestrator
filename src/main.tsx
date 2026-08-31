@@ -1,17 +1,22 @@
 /*
- * The mailbox first, and the import order is the whole point.
+ * The client first, and the import order is the whole point.
  *
  * Importing it installs the one `message` listener this page has, and it has to
  * be installed before the frame's `load` event, because that is when the host
  * greets. React's effects run strictly after `load`, so a listener installed in
- * a component is a listener that missed the greeting. See the essay in
- * `wire/mailbox.ts`.
+ * a component is a listener that missed the greeting. See the essay in the
+ * client's `mailbox.ts`.
+ *
+ * It stays in the ENTRY rather than moving beside `connect`, because a module
+ * scope that only a lazily-loaded chunk imports is a module scope that has not
+ * run yet — the same bug wearing a bundler's clothes. The package's
+ * `sideEffects` field names the client files for the same reason.
  *
  * It is listed above the React imports deliberately, and a formatter that sorts
  * imports must not be allowed to move it below something with a side effect of
  * its own.
  */
-import './wire/mailbox.ts'
+import 'roadmap-module-protocol/client'
 
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
