@@ -5,7 +5,7 @@ import { failed, roster, thread, type Event, type Roster, type Row } from '@/api
 import { StartPanel } from '@/view/start-panel.tsx'
 import { TranscriptView } from '@/view/transcript-view.tsx'
 import { SessionRow } from '@/view/session-row.tsx'
-import { useRoadmap } from '@/wire/use-roadmap.ts'
+import { useKehikot } from '@/wire/use-kehikot.ts'
 import { ID } from '../manifest.ts'
 
 /**
@@ -41,7 +41,7 @@ const ROSTER_MS = 4000
 const THREAD_MS = 1500
 
 export function App() {
-  const wire = useRoadmap(ID)
+  const wire = useKehikot(ID)
   const [list, setList] = useState<Roster | null>(null)
   const [listWhy, setListWhy] = useState<string | null>(null)
   const [open, setOpen] = useState<string | null>(null)

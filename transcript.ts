@@ -20,9 +20,9 @@ import { open, readdir, stat } from 'node:fs/promises'
  * Salvaged from `roadmap/src/transcript.ts`, and the reason it exists there is
  * the reason it exists here, so it is repeated rather than referenced:
  *
- *   The roadmap only hears from a session that calls its MCP tools, so picking
+ *   The host only hears from a session that calls its MCP tools, so picking
  *   a session out of the list used to show an empty thread — the session was
- *   real and working, it just had not talked to the roadmap. The transcript on
+ *   real and working, it just had not talked to the host. The transcript on
  *   disk is the conversation itself, so it is read directly rather than waited
  *   for.
  *
@@ -423,7 +423,7 @@ export async function stampFor(sessionId: string): Promise<number> {
  *   The opening prompt is the only thing about a background session that never
  *   moves: the pid belongs to a launcher that exits, the name is derived and
  *   then rewritten by the labelling cron, and the id is not known until after
- *   the session exists. So the roadmap writes a token into the prompt it
+ *   the session exists. So the host writes a token into the prompt it
  *   dispatches and looks for it here.
  *
  * `''` means "nothing was read" — the transcript is missing, unreadable, or has

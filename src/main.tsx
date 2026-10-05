@@ -16,7 +16,7 @@
  * imports must not be allowed to move it below something with a side effect of
  * its own.
  */
-import 'roadmap-module-protocol/client'
+import 'kehikot-module-protocol/client'
 
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'

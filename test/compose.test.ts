@@ -14,11 +14,11 @@ describe('the opening prompt', () => {
   ]
 
   test('puts the host’s prompt first, verbatim', () => {
-    const { text, fromHost } = compose('## from roadmap.references\nReview these for security.', refs)
+    const { text, fromHost } = compose('## from kehikot.references\nReview these for security.', refs)
     expect(fromHost).toBe(true)
     /* Verbatim includes the host's own fragment headings. They are the host's
        composition and this module does not reformat somebody else's prompt. */
-    expect(text.startsWith('## from roadmap.references\nReview these for security.')).toBe(true)
+    expect(text.startsWith('## from kehikot.references\nReview these for security.')).toBe(true)
   })
 
   test('names every selected reference, with its kind where one is known', () => {

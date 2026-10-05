@@ -10,7 +10,7 @@ read off this machine, not asked for.
 
 ```
 bun install
-bun run register            # writes ~/.roadmap/modules/roadmap.orchestrator.json
+bun run register            # writes ~/Library/Application Support/Kehikot/modules/kehikot.orchestrator.json
 ORCHESTRATOR_DIRS=/path/to/a/working/copy ./run.sh
 ```
 
@@ -40,7 +40,7 @@ before the button does anything.
 |---|---|
 | `ORCHESTRATOR_DIRS` | Colon-separated absolute paths. The directories this module may list sessions in and start one in. **No default** — unset means nothing can be started. |
 | `PORT` | Where to listen. 7850. |
-| `ROADMAP_ORIGIN` | Who may frame this page. Defaults to the host on 4181. |
+| `KEHIKOT_ORIGINS` | Who may frame this page (space-separated origins; `KEHIKOT_ORIGIN`, then the older `ROADMAP_ORIGIN`, are read as fallbacks). Defaults to every origin a host here serves from, 4170 and 4181 among them. |
 
 ## Where the arguments are
 
