@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { PROTOCOL, manifestSchema, speaks } from 'roadmap-module-protocol'
+import { PROTOCOL, manifestSchema, speaks } from 'kehikot-module-protocol'
 
 import { ID, MANIFEST, VERSION } from '../manifest.ts'
 

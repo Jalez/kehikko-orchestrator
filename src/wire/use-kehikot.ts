@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { kindsOf, type Known } from '@/live/kinds.ts'
-import { HostRefused, connect, type Connection, type Refusal } from 'roadmap-module-protocol/client'
+import { HostRefused, connect, type Connection, type Refusal } from 'kehikot-module-protocol/client'
 
 /**
  * The bridge, as one React value.
  *
- * `roadmap-module-protocol/client` is the wire and knows no React; this is the
+ * `kehikot-module-protocol/client` is the wire and knows no React; this is the
  * only file that turns messages into state. Two places driving the same context
  * would eventually disagree about what is selected, and this module turns what
  * is selected into the opening words of a process — so "which selection is
@@ -23,7 +23,7 @@ import { HostRefused, connect, type Connection, type Refusal } from 'roadmap-mod
  *
  * The field-by-field rebuild of the context, which named `epic`, `project`,
  * `theme`, `selection`, `pinned` and `prompt` — and therefore dropped
- * `projectPath` and `kehikko` on every `roadmap.context` this page received,
+ * `projectPath` and `kehikko` on every `kehikot.context` this page received,
  * silently. The client spreads the message, so both arrive now. `kehikko` is
  * the one that matters here: it says which canvas this container is standing
  * on, and it was never getting here at all.
@@ -52,7 +52,7 @@ import { HostRefused, connect, type Connection, type Refusal } from 'roadmap-mod
  */
 const GREETING_GRACE_MS = 700
 
-export interface Roadmap {
+export interface Kehikot {
   /**
    * Three states, and the first is not a loading flag.
    *
@@ -102,8 +102,8 @@ export interface Roadmap {
   kindsRefused: Refusal | null
 }
 
-export function useRoadmap(id: string): Roadmap {
-  const [at, setAt] = useState<Roadmap['at']>('listening')
+export function useKehikot(id: string): Kehikot {
+  const [at, setAt] = useState<Kehikot['at']>('listening')
   const [epic, setEpic] = useState<string | null>(null)
   const [selection, setSelection] = useState<string[]>([])
   const [prompt, setPrompt] = useState<string | null>(null)

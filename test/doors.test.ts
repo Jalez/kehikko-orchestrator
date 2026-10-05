@@ -75,7 +75,7 @@ describe('the health door', () => {
   test('says who is answering', async () => {
     const reply = await answer('GET', '/healthz', params(), null, null, empty)
     expect(reply?.status).toBe(200)
-    expect((reply?.body as { id: string }).id).toBe('roadmap.orchestrator')
+    expect((reply?.body as { id: string }).id).toBe('kehikot.orchestrator')
   })
 })
 

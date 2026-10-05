@@ -60,7 +60,7 @@ const OVER = new Set(['done', 'failed', 'cancelled', 'canceled', 'stopped'])
  * question: one asked "is it one of the five finished words", which reads every
  * OTHER state — `blocked` above all — as if the session had said it was alive.
  * It had not. `blocked` is a report about the WORK, one of the three words the
- * roadmap's own protocol tells an agent to send; a blocked session with no
+ * the protocol's own text tells an agent to send; a blocked session with no
  * processes left is over, and treating it as busy left a run standing for two
  * days with no way to clear it but by hand.
  *
