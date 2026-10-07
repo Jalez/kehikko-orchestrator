@@ -156,6 +156,8 @@ export const MANIFEST: Manifest = manifestSchema.parse({
   id: ID,
   name: 'Orchestrator',
   version: VERSION,
+  /* Where a host files this module in its list, most fitting first. */
+  tags: ['agents'],
   summary: 'Start a session on what you picked, and watch what it says.',
   /**
    * What an agent should do about this module, given that it is here.
