@@ -78,6 +78,16 @@ export function App() {
   }, [readRoster])
 
   /*
+   * A session opened by hand stays open only until the canvas changes epic.
+   * The epic switch clears the host's selection, so the roster widens to every
+   * session and would still contain this one, with a transcript that belongs to
+   * the references the reader has just left.
+   */
+  useEffect(() => {
+    setOpen(null)
+  }, [wire.epic])
+
+  /*
    * The open session's transcript, followed.
    *
    * `stamp` is a ref rather than state on purpose: it is the poll's own
