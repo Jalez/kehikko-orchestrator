@@ -73,7 +73,8 @@ export interface Started {
   dir?: string
   /** The token to look for in `opening()` when finding this session again. */
   token?: string
-  why?: string
+  /** Why not, when it was not: the sentence the page's `ask` reads. */
+  error?: string
 }
 
 /**
@@ -97,7 +98,7 @@ export async function start(
   if (!scope.dirs.length) {
     return {
       ok: false,
-      why:
+      error:
         `No working directory is configured, so there is nowhere to start a session. Set ${DIRS_VAR} to a ` +
         'colon-separated list of absolute paths and restart this module. There is deliberately no default: a ' +
         'guessed path is an agent editing the wrong repository.',
@@ -106,13 +107,13 @@ export async function start(
   if (!allowed(opts.dir, scope)) {
     return {
       ok: false,
-      why:
+      error:
         `${opts.dir || '(nothing)'} is not one of the directories this module was given. It may start a session ` +
         `in ${scope.dirs.join(', ')} and nowhere else; ${DIRS_VAR} is where that list comes from.`,
     }
   }
   const text = opts.prompt.trim()
-  if (!text) return { ok: false, why: 'A session needs something to be told. Nothing was composed to send it.' }
+  if (!text) return { ok: false, error: 'A session needs something to be told. Nothing was composed to send it.' }
 
   /* Fixed program, fixed flags, one variable argv element. See the essay above:
      this line is the whole of what may vary, and it varies as data rather than
@@ -124,7 +125,7 @@ export async function start(
   try {
     child = spawn(PROGRAM, ['--bg', text], { cwd: opts.dir, detached: true, stdio: 'ignore' })
   } catch (e) {
-    return { ok: false, why: `${PROGRAM} could not be started: ${e instanceof Error ? e.message : String(e)}` }
+    return { ok: false, error: `${PROGRAM} could not be started: ${e instanceof Error ? e.message : String(e)}` }
   }
 
   const settled = await new Promise<string | null>((done) => {
@@ -132,7 +133,7 @@ export async function start(
     child.once('error', (e: Error) => done(`${PROGRAM} could not be started in ${opts.dir}: ${e.message}`))
   })
   child.unref()
-  if (settled) return { ok: false, why: settled }
+  if (settled) return { ok: false, error: settled }
 
   return { ok: true, pid: child.pid, argv, dir: opts.dir, token: runToken(opts.refs) }
 }

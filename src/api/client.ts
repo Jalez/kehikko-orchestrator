@@ -79,18 +79,14 @@ export interface ScopeSaid {
  * server, and the server saying no are each a sentence, and the first two also
  * move the page's standing so the shared cover is drawn (`useServerStanding`).
  *
- * This module's doors spell their own sentence `why`, where `ask()` reads
- * `error`, so a refusal's body is read here — which also covers `/api/start`
- * answering "not started, and why" at 200.
+ * The doors spell their refusals `error`, which is where `ask()` reads the sentence — `/api/start`
+ * answering "not started, and why" at 200 included.
  */
 async function door<T>(path: string, options?: AskServerOptions): Promise<T | Refused> {
   const asked = await ask<T>(path, options)
-  if (asked.ok) {
-    if (asked.body && typeof asked.body === 'object') return asked.body
-    return { ok: false, why: `${path} answered with something that was not a reply.` }
-  }
-  const why = (asked.body as { why?: unknown } | null)?.why
-  return { ok: false, why: typeof why === 'string' && why ? why : asked.error }
+  if (!asked.ok) return { ok: false, why: asked.error }
+  if (asked.body && typeof asked.body === 'object') return asked.body
+  return { ok: false, why: `${path} answered with something that was not a reply.` }
 }
 
 export const failed = (r: unknown): r is Refused =>

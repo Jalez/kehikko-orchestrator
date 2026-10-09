@@ -8,7 +8,7 @@ import { StartPanel } from '@/view/start-panel.tsx'
 import { TranscriptView } from '@/view/transcript-view.tsx'
 import { SessionRow } from '@/view/session-row.tsx'
 import { useKinds } from '@/live/use-kinds.ts'
-import { keepOpen, readOpen } from '@/store/held.ts'
+import { opened } from '@/store/held.ts'
 import { ID } from '../manifest.ts'
 
 /**
@@ -85,7 +85,6 @@ export function App() {
   const [fresh, setFresh] = useState(0)
   const stamp = useRef(0)
 
-  const refsKey = selection.join(',')
 
   /**
    * Read the roster.
@@ -95,8 +94,7 @@ export function App() {
    * takes four seconds to apply reads as a filter that did not work.
    */
   const readRoster = useCallback(() => {
-    const refs = refsKey ? refsKey.split(',') : []
-    void roster(refs).then((answer) => {
+    void roster([...selection]).then((answer) => {
       if (failed(answer)) {
         setListWhy(answer.why)
         return
@@ -104,7 +102,7 @@ export function App() {
       setListWhy(null)
       setList(answer)
     })
-  }, [refsKey])
+  }, [selection])
 
   useEffect(() => {
     readRoster()
@@ -119,7 +117,7 @@ export function App() {
   const choose = useCallback(
     (session: string | null) => {
       setOpen(session)
-      keepOpen(projectPath, session ? { epic, session } : null)
+      opened.at(projectPath).keep(epic ?? '', session ? { session } : null)
     },
     [projectPath, epic],
   )
@@ -140,12 +138,13 @@ export function App() {
     if (!settled) return
     if (!stood.current) {
       stood.current = true
-      const held = readOpen(projectPath)
-      setOpen(held && held.epic === epic ? held.session : null)
+      setOpen(opened.at(projectPath).read(epic ?? '')?.session ?? null)
       return
     }
     setOpen(null)
-    keepOpen(projectPath, null)
+    /* Whatever was open under the epic just left is forgotten with it. */
+    const here = opened.at(projectPath)
+    for (const was of Object.keys(here.all())) here.keep(was, null)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the epic moving is the whole trigger
   }, [epic, settled])
 
@@ -221,10 +220,7 @@ export function App() {
    * this page's own server: restarted under it (the page reloads), not answering, or not read yet.
    * A roster already on screen is not replaced by `loading`, and a refusal is said in the legend.
    */
-  const cover: CoverState | null =
-    server === 'stale'
-      ? 'stale'
-      : (coverFor(host, {}) ?? (server === 'down' ? 'down' : !list && !listWhy ? 'loading' : null))
+  const cover: CoverState | null = coverFor({ ...host, server }, {}) ?? (!list && !listWhy ? 'loading' : null)
 
   return (
     <div className="container flex h-full min-w-0 flex-col text-sm">
