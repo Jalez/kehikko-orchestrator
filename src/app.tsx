@@ -8,6 +8,7 @@ import { StartPanel } from '@/view/start-panel.tsx'
 import { TranscriptView } from '@/view/transcript-view.tsx'
 import { SessionRow } from '@/view/session-row.tsx'
 import { useKinds } from '@/live/use-kinds.ts'
+import { keepOpen, readOpen } from '@/store/held.ts'
 import { ID } from '../manifest.ts'
 
 /**
@@ -67,7 +68,7 @@ export function App() {
   )
   /* How this page's own server last answered: `down` when nothing did, `stale` when it has restarted under this page. */
   const server = useServerStanding()
-  const { epic, selection } = host
+  const { epic, selection, projectPath } = host
   /*
    * The prompt the host composed for this container, and whether it has pinned
    * it. This module declares `prompt: true` and must work when there is none,
@@ -111,15 +112,42 @@ export function App() {
     return () => clearInterval(timer)
   }, [readRoster])
 
+  /**
+   * Open a session's transcript, or close it, and hold which across a reload
+   * of this page — with the epic it was opened under. See `store/held.ts`.
+   */
+  const choose = useCallback(
+    (session: string | null) => {
+      setOpen(session)
+      keepOpen(projectPath, session ? { epic, session } : null)
+    },
+    [projectPath, epic],
+  )
+
   /*
    * A session opened by hand stays open only until the canvas changes epic.
    * The epic switch clears the host's selection, so the roster widens to every
    * session and would still contain this one, with a transcript that belongs to
    * the references the reader has just left.
+   *
+   * The first time this page knows where it stands — greeted, or sure nobody
+   * will — is not a change of epic: it is a fresh page, and the session that was
+   * open under this same epic before the reload is opened again.
    */
+  const settled = host.where !== 'listening'
+  const stood = useRef(false)
   useEffect(() => {
+    if (!settled) return
+    if (!stood.current) {
+      stood.current = true
+      const held = readOpen(projectPath)
+      setOpen(held && held.epic === epic ? held.session : null)
+      return
+    }
     setOpen(null)
-  }, [epic])
+    keepOpen(projectPath, null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the epic moving is the whole trigger
+  }, [epic, settled])
 
   /*
    * The open session's transcript, followed.
@@ -223,7 +251,7 @@ export function App() {
                 key={row.sessionId}
                 row={row}
                 open={row.sessionId === open}
-                onOpen={() => setOpen(row.sessionId === open ? null : row.sessionId)}
+                onOpen={() => choose(row.sessionId === open ? null : row.sessionId)}
               />
             ))}
           </div>
@@ -232,6 +260,7 @@ export function App() {
             prompt={prompt}
             dirs={list?.dirs ?? []}
             scoped={list?.scoped ?? false}
+            project={projectPath}
             onStarted={readRoster}
           />
         </div>

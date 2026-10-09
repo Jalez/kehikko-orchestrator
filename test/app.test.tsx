@@ -28,6 +28,9 @@ const realFetch = globalThis.fetch
 /** What the fake server does next: answer, throw as a stopped one does, or refuse the roster. */
 let server: 'up' | 'down' | 'refusing' = 'up'
 let asked: { url: string; headers: Record<string, string> }[] = []
+/** The directories the fake server may start a session in, and whether it does. */
+let dirs: string[] = []
+let starts = false
 
 const settle = (ms: number) => act(async () => void (await new Promise((resolve) => setTimeout(resolve, ms))))
 const say = async (type: 'kehikot.hello' | 'kehikot.context', context: Record<string, unknown>) => {
@@ -47,18 +50,22 @@ const cover = () => document.querySelector('[data-cover]')
 beforeEach(() => {
   server = 'up'
   asked = []
+  dirs = []
+  starts = false
+  sessionStorage.clear()
   resetServerStanding()
   globalThis.fetch = (async (url: string, init?: { headers?: Record<string, string> }) => {
     asked.push({ url, headers: init?.headers ?? {} })
     if (server === 'down') throw new TypeError('Load failed')
     if (url.startsWith('api/sessions')) {
       if (server === 'refusing') return Response.json({ ok: false, why: 'The roster is read with GET.' }, { status: 405 })
-      return Response.json({ ok: true, scoped: false, dirs: [], refs: [], total: 1, considered: 1, cut: false, sessions: [session] })
+      return Response.json({ ok: true, scoped: dirs.length > 0, dirs, refs: [], total: 1, considered: 1, cut: false, sessions: [session] })
     }
     if (url.startsWith('api/transcript')) {
       return Response.json({ ok: true, touchedAt: 1, events: [{ role: 'agent', kind: 'said', tool: '', text: 'transcript line' }] })
     }
     if (url.startsWith('api/start')) {
+      if (starts) return Response.json({ ok: true, pid: 4242, argv: ['claude', '--bg', 'x'] })
       return Response.json({ ok: false, why: 'ORCHESTRATOR_DIRS is not set, so nothing can be started.' })
     }
     return Response.json({ ok: true, dirs: [], rejected: [], variable: '' })
@@ -185,5 +192,125 @@ describe('this page asking its own server', () => {
     const { thread } = await import('../src/api/client.ts')
     server = 'down'
     expect(await thread('s1', 0)).toEqual({ ok: false, why: 'This app’s own server is not answering.' })
+  })
+})
+
+/*
+ * A reload is played as an unmount and a fresh mount: the mailbox gives the new page the last
+ * greeting, as a host greets a reloaded frame, and `sessionStorage` is what a reload leaves.
+ */
+describe('what somebody was in the middle of survives the page reloading under it', () => {
+  const here = { project: 'p', projectPath: '/tmp/p', epic: 'a', prompt: 'Do the thing.' }
+  const box = async () => (await screen.findByRole('textbox')) as HTMLTextAreaElement
+  const draft = () => sessionStorage.getItem('kehikot.orchestrator.draft:/tmp/p')
+  const reload = async () => {
+    cleanup()
+    render(<App />)
+    await settle(60)
+  }
+
+  test('an edited prompt is still in the box after a reload, with the directory chosen beside it', async () => {
+    dirs = ['/work/one', '/work/two']
+    render(<App />)
+    await say('kehikot.hello', here)
+    const first = await box()
+    expect(first.value).toContain('Do the thing.')
+    fireEvent.change(first, { target: { value: 'my own words' } })
+    fireEvent.change(await screen.findByRole('combobox'), { target: { value: '/work/two' } })
+    expect(JSON.parse(draft() ?? '{}')).toMatchObject({ text: 'my own words', dir: '/work/two' })
+
+    await reload()
+    expect((await box()).value).toBe('my own words')
+    await waitFor(() => expect((screen.getByRole('combobox') as HTMLSelectElement).value).toBe('/work/two'))
+  })
+
+  test('an untouched prompt holds nothing, and an emptied or put-back one is forgotten', async () => {
+    render(<App />)
+    await say('kehikot.hello', here)
+    const first = await box()
+    const composed = first.value
+    expect(draft()).toBeNull()
+    fireEvent.change(first, { target: { value: 'half a thought' } })
+    expect(draft()).not.toBeNull()
+    fireEvent.change(first, { target: { value: '  ' } })
+    expect(draft()).toBeNull()
+    fireEvent.change(first, { target: { value: 'again' } })
+    fireEvent.change(first, { target: { value: composed } })
+    expect(draft()).toBeNull()
+
+    await reload()
+    expect((await box()).value).toBe(composed)
+  })
+
+  test('sending it forgets it', async () => {
+    dirs = ['/work/one']
+    starts = true
+    render(<App />)
+    await say('kehikot.hello', here)
+    fireEvent.change(await box(), { target: { value: 'send these words' } })
+    expect(draft()).not.toBeNull()
+    await waitFor(() => expect((screen.getByRole('button', { name: 'Start' }) as HTMLButtonElement).disabled).toBe(false))
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Start' }))
+      await new Promise((resolve) => setTimeout(resolve, 30))
+    })
+    expect(document.body.textContent).toContain('Started (pid 4242)')
+    expect(draft()).toBeNull()
+  })
+
+  test('a new prompt from the host still replaces an edit, as it always did, and the edit is forgotten', async () => {
+    render(<App />)
+    await say('kehikot.hello', here)
+    fireEvent.change(await box(), { target: { value: 'my own words' } })
+    await say('kehikot.context', { ...here, prompt: 'Do another thing.' })
+    expect((await box()).value).toContain('Do another thing.')
+    expect(draft()).toBeNull()
+    /* And going back does not bring it back from nowhere. */
+    await say('kehikot.context', here)
+    expect((await box()).value).toContain('Do the thing.')
+    expect((await box()).value).not.toContain('my own words')
+  })
+
+  test('a draft held for another prompt is not shown over this one', async () => {
+    sessionStorage.setItem('kehikot.orchestrator.draft:/tmp/p', JSON.stringify({ base: 'something else', text: 'stale words', dir: '' }))
+    render(<App />)
+    await say('kehikot.hello', here)
+    expect((await box()).value).toContain('Do the thing.')
+  })
+
+  test('the open session is open again after a reload, and not after the epic has changed', async () => {
+    render(<App />)
+    await say('kehikot.hello', here)
+    fireEvent.click(await screen.findByText('the session'))
+    await screen.findByText('transcript line')
+
+    await reload()
+    await screen.findByText('transcript line')
+    expect(document.querySelector('[aria-current="true"]')).not.toBeNull()
+
+    await say('kehikot.context', { ...here, epic: 'b' })
+    await waitFor(() => expect(screen.queryByText('transcript line')).toBeNull())
+    expect(sessionStorage.getItem('kehikot.orchestrator.open:/tmp/p')).toBeNull()
+  })
+
+  test('with no storage to keep it in, the page works as it did', async () => {
+    const real = Object.getOwnPropertyDescriptor(globalThis, 'sessionStorage')
+    Object.defineProperty(globalThis, 'sessionStorage', {
+      configurable: true,
+      get() {
+        throw new DOMException('The operation is insecure.', 'SecurityError')
+      },
+    })
+    try {
+      render(<App />)
+      await say('kehikot.hello', here)
+      const first = await box()
+      fireEvent.change(first, { target: { value: 'my own words' } })
+      expect(first.value).toBe('my own words')
+      fireEvent.click(await screen.findByText('the session'))
+      await screen.findByText('transcript line')
+    } finally {
+      if (real) Object.defineProperty(globalThis, 'sessionStorage', real)
+    }
   })
 })
