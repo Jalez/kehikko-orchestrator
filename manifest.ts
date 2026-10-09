@@ -180,6 +180,8 @@ export const MANIFEST: Manifest = manifestSchema.parse({
   entry: '/app',
   modes: [{ id: 'orchestrator', label: 'Sessions', scope: 'epic' }],
   extensions: { emits: [], consumes: [] },
+  /* Why this module has nothing to narrow by the parts of an epic. */
+  partless: 'Lists agent sessions, which name refs only in passing; the owner chose not to narrow them by part.',
   declares: {
     protocol: `>=${PROTOCOL} <${PROTOCOL + 1}`,
     uses: ['live:read'],
