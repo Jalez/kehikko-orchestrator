@@ -40,7 +40,7 @@ before the button does anything.
 |---|---|
 | `ORCHESTRATOR_DIRS` | Colon-separated absolute paths. The directories this module may list sessions in and start one in. **No default** — unset means nothing can be started. |
 | `PORT` | Where to listen. 7850. |
-| `KEHIKOT_ORIGINS` | Who may frame this page (space-separated origins; `KEHIKOT_ORIGIN`, then the older `ROADMAP_ORIGIN`, are read as fallbacks). Defaults to every origin a host here serves from, 4170 and 4181 among them. |
+| `KEHIKOT_ORIGINS` | Who may frame this page (space-separated origins; `KEHIKOT_ORIGIN` is read as a fallback). Defaults to every origin a host here serves from, 4170 and 4181 among them. |
 
 ## Where the arguments are
 
