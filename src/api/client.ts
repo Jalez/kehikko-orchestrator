@@ -1,3 +1,5 @@
+import { ask, type AskServerOptions } from 'kehikot-module-protocol/client'
+
 import type { Row } from '../../doors.ts'
 import type { Event } from '../../transcript.ts'
 
@@ -19,32 +21,11 @@ export type { Event, Row }
  *
  * ## The ticket
  *
- * Read once, out of the document, and sent on the one call that writes. See
- * `TICKET` in `doors.ts` for what it protects and — more importantly — what it
- * does not.
+ * Printed into `/app` by the process that serves it and carried by the
+ * protocol's `ask()` on everything that is not a GET — here, the one call that
+ * writes. See `TICKET` in `doors.ts` for what it protects and — more
+ * importantly — what it does not.
  */
-
-/**
- * The write ticket, printed into `/app` by the process that serves it.
- *
- * Read at module load rather than per call. If it is missing the page is not
- * being served by this module's own server — somebody is running `vite` and
- * hitting `/index.html`, or the document has been copied somewhere — and the
- * honest thing is an empty string, which `POST /api/start` refuses with a
- * sentence that says to reload. Guessing would turn a misconfiguration into a
- * silent 403 nobody can explain.
- */
-export const TICKET: string = (() => {
-  if (typeof document === 'undefined') return ''
-  const tag = document.getElementById('orchestrator-ticket')
-  if (!tag?.textContent) return ''
-  try {
-    const parsed: unknown = JSON.parse(tag.textContent)
-    return typeof parsed === 'string' ? parsed : ''
-  } catch {
-    return ''
-  }
-})()
 
 /** What every door answers with when it is refusing. */
 export interface Refused {
@@ -92,22 +73,24 @@ export interface ScopeSaid {
 }
 
 /**
- * One fetch, with the failure turned into a value.
+ * One question to this module's own server, with the failure turned into a value.
  *
- * A thrown `TypeError: Failed to fetch` in a component is a blank container and a
- * line in a console nobody has open. What every caller here wants instead is a
- * sentence, so a dead server reads the same way as a refusal: something on
- * screen saying what did not happen.
+ * The protocol's `ask()` never throws: nothing answering, a page older than its
+ * server, and the server saying no are each a sentence, and the first two also
+ * move the page's standing so the shared cover is drawn (`useServerStanding`).
+ *
+ * This module's doors spell their own sentence `why`, where `ask()` reads
+ * `error`, so a refusal's body is read here — which also covers `/api/start`
+ * answering "not started, and why" at 200.
  */
-async function ask<T>(path: string, init?: RequestInit): Promise<T | Refused> {
-  try {
-    const response = await fetch(path, init)
-    const data: unknown = await response.json()
-    if (data && typeof data === 'object') return data as T | Refused
+async function door<T>(path: string, options?: AskServerOptions): Promise<T | Refused> {
+  const asked = await ask<T>(path, options)
+  if (asked.ok) {
+    if (asked.body && typeof asked.body === 'object') return asked.body
     return { ok: false, why: `${path} answered with something that was not a reply.` }
-  } catch {
-    return { ok: false, why: `This module’s own server did not answer ${path}. It may have stopped.` }
   }
+  const why = (asked.body as { why?: unknown } | null)?.why
+  return { ok: false, why: typeof why === 'string' && why ? why : asked.error }
 }
 
 export const failed = (r: unknown): r is Refused =>
@@ -117,16 +100,15 @@ export function roster(refs: string[]): Promise<Roster | Refused> {
   /* `refs` are opaque strings the canvas chose and are encoded rather than
      trusted to be URL-safe: `!12` and `#131` both contain characters a query
      string reads as punctuation. */
-  const query = refs.length ? `?refs=${encodeURIComponent(refs.join(','))}` : ''
-  return ask<Roster>(`api/sessions${query}`)
+  return door<Roster>('api/sessions', { query: { refs: refs.length ? refs.join(',') : null } })
 }
 
 export function thread(session: string, since: number): Promise<Thread | Refused> {
-  return ask<Thread>(`api/transcript?session=${encodeURIComponent(session)}&since=${since}`)
+  return door<Thread>('api/transcript', { query: { session, since } })
 }
 
 export function scope(): Promise<ScopeSaid | Refused> {
-  return ask<ScopeSaid>('api/scope')
+  return door<ScopeSaid>('api/scope')
 }
 
 /**
@@ -139,9 +121,5 @@ export function scope(): Promise<ScopeSaid | Refused> {
  * `compose()`, the page renders its output, and this posts the same characters.
  */
 export function start(body: { prompt: string; dir: string; refs: string[] }): Promise<Started | Refused> {
-  return ask<Started>('api/start', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-orchestrator-ticket': TICKET },
-    body: JSON.stringify(body),
-  })
+  return door<Started>('api/start', { body })
 }

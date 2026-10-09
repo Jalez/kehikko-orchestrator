@@ -97,7 +97,9 @@ describe('POST /api/start', () => {
   test('is refused without the write ticket, before the body is even read', async () => {
     const reply = await answer('POST', '/api/start', params(), { dir, prompt: 'hello', refs: [] }, null, scope)
     expect(reply?.status).toBe(403)
-    expect((reply?.body as { why: string }).why).toContain('write ticket')
+    expect((reply?.body as { error: string }).error).toContain('write ticket')
+    /* Marked, so the page's own `ask()` knows it is older than this server and reloads itself. */
+    expect((reply?.body as { refused: string }).refused).toBe('ticket')
   })
 
   test('is refused with the wrong ticket', async () => {

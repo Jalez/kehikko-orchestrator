@@ -25,7 +25,7 @@ import { join } from 'node:path'
  * check that runs under bun and asserts something about node, so that is what
  * this is. It is crude on purpose: crude and correct beats subtle and absent.
  */
-const SERVER_FILES = ['sessions.ts', 'transcript.ts', 'start.ts', 'scope.ts', 'doors.ts', 'page.ts', 'vite.config.ts']
+const SERVER_FILES = ['sessions.ts', 'transcript.ts', 'start.ts', 'scope.ts', 'doors.ts', 'vite.config.ts']
 
 describe('the server half', () => {
   for (const name of SERVER_FILES) {
