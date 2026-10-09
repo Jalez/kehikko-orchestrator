@@ -58,7 +58,7 @@ beforeEach(() => {
     asked.push({ url, headers: init?.headers ?? {} })
     if (server === 'down') throw new TypeError('Load failed')
     if (url.startsWith('api/sessions')) {
-      if (server === 'refusing') return Response.json({ ok: false, why: 'The roster is read with GET.' }, { status: 405 })
+      if (server === 'refusing') return Response.json({ ok: false, error: 'The roster is read with GET.' }, { status: 405 })
       return Response.json({ ok: true, scoped: dirs.length > 0, dirs, refs: [], total: 1, considered: 1, cut: false, sessions: [session] })
     }
     if (url.startsWith('api/transcript')) {
@@ -66,7 +66,7 @@ beforeEach(() => {
     }
     if (url.startsWith('api/start')) {
       if (starts) return Response.json({ ok: true, pid: 4242, argv: ['claude', '--bg', 'x'] })
-      return Response.json({ ok: false, why: 'ORCHESTRATOR_DIRS is not set, so nothing can be started.' })
+      return Response.json({ ok: false, error: 'ORCHESTRATOR_DIRS is not set, so nothing can be started.' })
     }
     return Response.json({ ok: true, dirs: [], rejected: [], variable: '' })
   }) as unknown as typeof fetch
@@ -202,7 +202,8 @@ describe('this page asking its own server', () => {
 describe('what somebody was in the middle of survives the page reloading under it', () => {
   const here = { project: 'p', projectPath: '/tmp/p', epic: 'a', prompt: 'Do the thing.' }
   const box = async () => (await screen.findByRole('textbox')) as HTMLTextAreaElement
-  const draft = () => sessionStorage.getItem('kehikot.orchestrator.draft:/tmp/p')
+  /* The one draft a project has, as the tab holds it: by target, under the name this module has always used. */
+  const draft = () => (JSON.parse(sessionStorage.getItem('kehikot.orchestrator.draft:/tmp/p') ?? '{}') as { prompt?: unknown }).prompt ?? null
   const reload = async () => {
     cleanup()
     render(<App />)
@@ -217,7 +218,7 @@ describe('what somebody was in the middle of survives the page reloading under i
     expect(first.value).toContain('Do the thing.')
     fireEvent.change(first, { target: { value: 'my own words' } })
     fireEvent.change(await screen.findByRole('combobox'), { target: { value: '/work/two' } })
-    expect(JSON.parse(draft() ?? '{}')).toMatchObject({ text: 'my own words', dir: '/work/two' })
+    expect(draft()).toMatchObject({ text: 'my own words', dir: '/work/two' })
 
     await reload()
     expect((await box()).value).toBe('my own words')
@@ -272,10 +273,23 @@ describe('what somebody was in the middle of survives the page reloading under i
   })
 
   test('a draft held for another prompt is not shown over this one', async () => {
-    sessionStorage.setItem('kehikot.orchestrator.draft:/tmp/p', JSON.stringify({ base: 'something else', text: 'stale words', dir: '' }))
+    sessionStorage.setItem('kehikot.orchestrator.draft:/tmp/p', JSON.stringify({ prompt: { base: 'something else', text: 'stale words', dir: '' } }))
     render(<App />)
     await say('kehikot.hello', here)
     expect((await box()).value).toContain('Do the thing.')
+  })
+
+  test('what an older build of this page left in the tab is not read as something else, and goes with the next thing held', async () => {
+    sessionStorage.setItem('kehikot.orchestrator.draft:/tmp/p', JSON.stringify({ base: 'Do the thing.', text: 'old words', dir: '/work/one' }))
+    sessionStorage.setItem('kehikot.orchestrator.open:/tmp/p', JSON.stringify({ epic: 'a', session: 's1' }))
+    render(<App />)
+    await say('kehikot.hello', { ...here, epic: 'session' })
+    expect((await box()).value).not.toContain('old words')
+    expect(screen.queryByText('transcript line')).toBeNull()
+    fireEvent.change(await box(), { target: { value: 'new words' } })
+    expect(JSON.parse(sessionStorage.getItem('kehikot.orchestrator.draft:/tmp/p') ?? '{}')).toEqual({ prompt: expect.objectContaining({ text: 'new words' }) })
+    fireEvent.click(await screen.findByText('the session'))
+    expect(JSON.parse(sessionStorage.getItem('kehikot.orchestrator.open:/tmp/p') ?? '{}')).toEqual({ session: { session: expect.any(String) } })
   })
 
   test('the open session is open again after a reload, and not after the epic has changed', async () => {

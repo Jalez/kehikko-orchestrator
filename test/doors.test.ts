@@ -128,13 +128,13 @@ describe('POST /api/start', () => {
       scope,
     )
     expect((reply?.body as { ok: boolean }).ok).toBe(false)
-    expect((reply?.body as { why: string }).why).toContain('not one of the directories')
+    expect((reply?.body as { error: string }).error).toContain('not one of the directories')
   })
 
   test('refuses everything when no directory is configured, and names the variable', async () => {
     const reply = await answer('POST', '/api/start', params(), { dir, prompt: 'hello', refs: [] }, TICKET, empty)
     expect((reply?.body as { ok: boolean }).ok).toBe(false)
-    expect((reply?.body as { why: string }).why).toContain('ORCHESTRATOR_DIRS')
+    expect((reply?.body as { error: string }).error).toContain('ORCHESTRATOR_DIRS')
   })
 
   test('refuses an empty prompt rather than starting a session with nothing to do', async () => {

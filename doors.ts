@@ -62,7 +62,7 @@ const NO_TICKET =
   'serves and is new on every start, so a page holding an old one only has to be reloaded.'
 
 const ok = (body: unknown): Reply => ({ status: 200, body })
-const refuse = (status: number, why: string): Reply => ({ status, body: { ok: false, why } })
+const refuse = (status: number, why: string): Reply => ({ status, body: { ok: false, error: why } })
 
 /**
  * Openings never change once written, so they are remembered forever.

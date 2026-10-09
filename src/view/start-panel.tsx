@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { compose, type Named } from '../../compose.ts'
 import { start, type Started } from '@/api/client.ts'
 import { Button } from '@/components/ui/button.tsx'
-import { keepDraft, readDraft } from '@/store/held.ts'
+import { PROMPT, drafts } from '@/store/held.ts'
 
 /**
  * The start button, and everything a person should read before pressing it.
@@ -91,14 +91,14 @@ export function StartPanel({
    * forgets nothing.
    */
   useEffect(() => {
-    const held = readDraft(project)
+    const held = drafts.at(project).read(PROMPT)
     if (held && held.base === composed.text) {
       edited.current = true
       under.current = project
       setText(held.text)
       wanted.current = held.dir
     } else {
-      if (edited.current) keepDraft(under.current, null)
+      if (edited.current) drafts.at(under.current).keep(PROMPT, null)
       edited.current = false
       setText(composed.text)
     }
@@ -122,7 +122,7 @@ export function StartPanel({
     const mine = next.trim().length > 0 && next !== composed.text
     edited.current = mine
     under.current = project
-    keepDraft(project, mine ? { base: composed.text, text: next, dir: where } : null)
+    drafts.at(project).keep(PROMPT, mine ? { base: composed.text, text: next, dir: where } : null)
   }
 
   const canStart = Boolean(dir) && text.trim().length > 0 && !busy
@@ -219,7 +219,7 @@ export function StartPanel({
               if ((result as Started).ok) {
                 /* Sent: it is no longer a draft. The words stay in the box, as they always did. */
                 edited.current = false
-                keepDraft(project, null)
+                drafts.at(project).keep(PROMPT, null)
                 onStarted()
               }
             })
