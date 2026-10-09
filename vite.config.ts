@@ -1,52 +1,36 @@
-import type { IncomingMessage } from 'node:http'
 import { resolve } from 'node:path'
 
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
-import { LEGACY_WELL_KNOWN, WELL_KNOWN, legacyManifest } from 'kehikot-module-protocol'
-import { frameAncestors, serves } from 'kehikot-module-protocol/serve'
+import { doors, serves } from 'kehikot-module-protocol/serve'
 import { defineConfig, type Plugin } from 'vite'
 
-import { MANIFEST, TICKET, answer } from './doors.ts'
+import { BUILD, MANIFEST, TICKET, answer } from './doors.ts'
 import { ID, PREFERRED_PORT } from './manifest.ts'
-import { page } from './page.ts'
 import { readScope } from './scope.ts'
 
 /**
- * Every door this module answers on, served by the one process that serves the
- * page.
+ * Which directories this process may start a session in: read once, at start.
  *
- * ## Why they cannot be a second server
- *
- * A module is ONE ORIGIN or it is nothing: the protocol refuses a manifest
- * whose `entry` points anywhere but the origin that served the manifest, and it
- * is right to — a program that could name somebody else's page would be a
- * program that could have the host frame somebody else.
- *
- * That argument is usually made about the manifest and the health check. Here
- * it reaches further, because this module serves its own material: the page
- * fetches `/api/sessions` and `/api/transcript` as relative paths, which is how
- * it works with nothing else running at all. A store on a second port would
- * make every one of those fetches cross-origin and would mean this page could
- * not read its own roster inside the frame it was written to live in. So the
- * doors are middleware here, and `doors.ts` holds the deciding without holding
- * a socket.
+ * Read once rather than per request because this is what the process was
+ * started with, and a variable that changed under a running process would be a
+ * scope that widened without anybody restarting anything. The doors below close
+ * over it.
  */
-function doors(): Plugin {
+const scope = readScope()
+
+/**
+ * The scope, said out loud in the log.
+ *
+ * A person who set `ORCHESTRATOR_DIRS` and typoed a path should find out here,
+ * in the terminal they typed it in, and not from a button refusing them twenty
+ * minutes later.
+ */
+function saysScope(): Plugin {
   return {
-    name: 'orchestrator-doors',
+    name: 'orchestrator-scope',
+    apply: 'serve',
     configureServer(server) {
-      /**
-       * Read once, at start, and said out loud in the log.
-       *
-       * A person who set `ORCHESTRATOR_DIRS` and typoed a path should find out
-       * here, in the terminal they typed it in, and not from a button refusing
-       * them twenty minutes later. Read once rather than per request because
-       * this is what the process was started with, and a variable that changed
-       * under a running process would be a scope that widened without anybody
-       * restarting anything.
-       */
-      const scope = readScope()
       if (scope.dirs.length) {
         server.config.logger.info(`orchestrator: may start sessions in ${scope.dirs.join(', ')}`)
       } else {
@@ -58,110 +42,7 @@ function doors(): Plugin {
       for (const bad of scope.rejected) {
         server.config.logger.warn(`orchestrator: ignoring ${bad.path} — ${bad.why}`)
       }
-
-      server.middlewares.use((request, response, next) => {
-        const url = new URL(request.url ?? '/', 'http://127.0.0.1')
-        const path = url.pathname
-        const method = (request.method ?? 'GET').toUpperCase()
-
-        const send = (status: number, body: unknown) => {
-          response.statusCode = status
-          response.setHeader('content-type', 'application/json; charset=utf-8')
-          response.end(JSON.stringify(body, null, 2))
-        }
-
-        /* Spelled by the protocol package so that this module and every host
-           cannot disagree about it by a character. */
-        if (path === WELL_KNOWN) return send(200, MANIFEST)
-        /* The same manifest in the spelling a host from before the rename asks for. */
-        if (path === LEGACY_WELL_KNOWN) return send(200, legacyManifest(MANIFEST))
-
-        if (path === '/app' || path === '/app/' || path === '/') {
-          void server
-            .transformIndexHtml(request.url ?? '/app', page(TICKET), request.originalUrl)
-            .then((html) => {
-              response.statusCode = 200
-              response.setHeader('content-type', 'text/html; charset=utf-8')
-              /*
-               * Framed by a host and by nothing else — and by nothing at all is
-               * fine too, which is what opening this page directly is.
-               *
-               * `frame-ancestors` is the module's own half of the arrangement:
-               * a host says which origins IT will frame, and this says who may
-               * frame this. It is deliberately not a list of one: whoever is
-               * running this decides, through `frameAncestors()` (`KEHIKOT_ORIGINS`, falling back to `ROADMAP_ORIGIN`), and the default
-               * is the address the host in this workspace actually serves on.
-               *
-               * It matters more here than in the modules that only read. A page
-               * with a start button embedded in a stranger's document is a
-               * start button somebody can be tricked into pressing.
-               */
-              response.setHeader('content-security-policy', frameAncestors())
-              response.end(html)
-            })
-            .catch(next)
-          return
-        }
-
-        const ours = path === '/healthz' || path.startsWith('/api/')
-        if (!ours) return next()
-
-        /* Only the paths above read a body, and only those wait for one. Vite's
-           own middleware stack has to keep seeing an unconsumed request for
-           everything else. */
-        void body(request)
-          .then((parsed) =>
-            answer(method, path, url.searchParams, parsed, readTicket(request.headers['x-orchestrator-ticket']), scope),
-          )
-          .then((reply) => {
-            if (!reply) return next()
-            send(reply.status, reply.body)
-          })
-          .catch(next)
-      })
     },
-  }
-}
-
-/** One header, which node hands over as a string, an array, or nothing. */
-function readTicket(value: string | string[] | undefined): string | null {
-  if (typeof value === 'string') return value
-  if (Array.isArray(value)) return value[0] ?? null
-  return null
-}
-
-/**
- * The request body, as JSON, or null.
- *
- * Bounded, because the caller is whatever on this machine found the port —
- * loopback is a fence around the machine and not around the programs on it —
- * and a handler that reads until the socket closes is a handler that can be
- * asked to read forever. The largest thing this module accepts is a prompt,
- * which the protocol caps at 8KB; a megabyte is a bound rather than a budget.
- *
- * Unparseable is null rather than a throw, and `doors.ts` says "that was not a
- * request" about it. A malformed body is an ordinary answer to give.
- */
-const MAX_BODY_BYTES = 1_000_000
-
-async function body(request: IncomingMessage): Promise<Record<string, unknown> | null> {
-  if ((request.method ?? 'GET').toUpperCase() !== 'POST') return null
-  const chunks: Buffer[] = []
-  let size = 0
-  for await (const chunk of request) {
-    const piece = chunk as Buffer
-    size += piece.length
-    if (size > MAX_BODY_BYTES) return null
-    chunks.push(piece)
-  }
-  if (!chunks.length) return null
-  try {
-    const parsed: unknown = JSON.parse(Buffer.concat(chunks).toString('utf8'))
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>)
-      : null
-  } catch {
-    return null
   }
 }
 
@@ -224,10 +105,36 @@ async function body(request: IncomingMessage): Promise<Record<string, unknown> |
  * next free port with the registration rewritten to the port the server ACTUALLY
  * bound, read off `httpServer.address()` after `listening` rather than off what
  * was asked for.
+ *
+ * ## `doors()`
+ *
+ * Every door this module answers on, served by the one process that serves the
+ * page — a module is ONE ORIGIN, and the page fetches `api/sessions` and
+ * `api/transcript` as relative paths. The protocol's plugin serves the manifest
+ * at both well-known paths, `/app` (generated, so the write ticket and the build
+ * can be printed into it, `no-store`, and `frame-ancestors` from
+ * `frameAncestors()` — which matters more here than in the modules that only
+ * read: a page with a start button embedded in a stranger's document is a start
+ * button somebody can be tricked into pressing), and `/healthz` and `/api/*`
+ * through `answer` in `doors.ts`, which holds the deciding without holding a
+ * socket. The body is bounded at the plugin's megabyte; the largest thing this
+ * module accepts is a prompt, which the protocol caps at 8KB. See the
+ * protocol's docs/module-plumbing.md.
  */
 export default defineConfig({
   base: './',
-  plugins: [serves({ id: ID, prefer: PREFERRED_PORT }), doors(), react(), tailwindcss()],
+  plugins: [
+    serves({ id: ID, prefer: PREFERRED_PORT }),
+    saysScope(),
+    doors({
+      manifest: MANIFEST,
+      answer: (method, path, query, body, ticket) => answer(method, path, query, body, ticket, scope),
+      build: BUILD,
+      page: { title: 'Orchestrator', ticket: TICKET },
+    }),
+    react(),
+    tailwindcss(),
+  ],
   resolve: { alias: { '@': resolve(import.meta.dirname, 'src') } },
   build: { outDir: 'dist', emptyOutDir: true },
 })

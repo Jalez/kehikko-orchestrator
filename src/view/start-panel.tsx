@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { compose, type Named } from '../../compose.ts'
 import { start, type Started } from '@/api/client.ts'
 import { Button } from '@/components/ui/button.tsx'
+import { keepDraft, readDraft } from '@/store/held.ts'
 
 /**
  * The start button, and everything a person should read before pressing it.
@@ -24,10 +25,15 @@ import { Button } from '@/components/ui/button.tsx'
  * prevent. So the composed text is put in a textarea, the person may edit it,
  * and what is posted is what is in the box.
  *
- * The edit is deliberately not remembered anywhere. It belongs to this press.
- * A remembered edit would be a second prompt store living in the module that
- * was told not to have one, and it would go stale against the host's the moment
- * anybody changed anything upstairs.
+ * The edit belongs to this press, and is remembered only far enough to survive
+ * the page reloading under it — which it does by itself when its server has
+ * restarted. It is held in the tab (`store/held.ts`), with the composed text it
+ * was written over and the directory chosen beside it, and is given back only
+ * while the host's prompt and the selection still compose to that same text.
+ * It is forgotten when it is sent, emptied, or put back as composed, and when
+ * the host's prompt or the selection moves on. That is not a prompt store: it
+ * outlives nothing but a reload and can never disagree with the host's, because
+ * a draft whose base no longer matches is not shown.
  *
  * ## Why a null prompt is not disabled
  *
@@ -43,12 +49,15 @@ export function StartPanel({
   prompt,
   dirs,
   scoped,
+  project,
   onStarted,
 }: {
   refs: Named[]
   prompt: string | null
   dirs: string[]
   scoped: boolean
+  /** The open project's directory, or null: what an unsent edit is held under. */
+  project: string | null
   onStarted: () => void
 }) {
   const composed = compose(prompt, refs)
@@ -56,6 +65,13 @@ export function StartPanel({
   const [dir, setDir] = useState(dirs[0] ?? '')
   const [busy, setBusy] = useState(false)
   const [said, setSaid] = useState<Started | null>(null)
+
+  /* Whether what is in the box is somebody's edit: typed here, or given back after a reload. */
+  const edited = useRef(false)
+  /* The project that edit is held under, which is not always the one open now: the host may have just changed it. */
+  const under = useRef(project)
+  /* The directory a restored draft was aimed at, until the roster has said which directories there are. */
+  const wanted = useRef('')
 
   /*
    * When the host's prompt or the selection changes, the box goes back to the
@@ -66,16 +82,48 @@ export function StartPanel({
    * references, and the mismatch is invisible because the box looks like it is
    * showing the current state. Losing an edit is a visible cost; sending an
    * agent at the wrong work is not.
+   *
+   * The one exception is a reload. This effect also runs as a fresh page works
+   * its way to the same composed text it had before (no host yet, then the
+   * greeting, then the kinds), and an edit held for exactly that text is put
+   * back. An edit in the box that the host has just composed away from is
+   * forgotten with it; a fresh page on its way has no edit in the box, so it
+   * forgets nothing.
    */
   useEffect(() => {
-    setText(composed.text)
+    const held = readDraft(project)
+    if (held && held.base === composed.text) {
+      edited.current = true
+      under.current = project
+      setText(held.text)
+      wanted.current = held.dir
+    } else {
+      if (edited.current) keepDraft(under.current, null)
+      edited.current = false
+      setText(composed.text)
+    }
     setSaid(null)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the composed text itself, which is the whole input
-  }, [composed.text])
+  }, [composed.text, project])
 
   useEffect(() => {
-    if (!dirs.includes(dir)) setDir(dirs[0] ?? '')
-  }, [dirs, dir])
+    if (wanted.current && dirs.includes(wanted.current)) {
+      setDir(wanted.current)
+      wanted.current = ''
+    } else if (!dirs.includes(dir)) setDir(dirs[0] ?? '')
+  }, [dirs, dir, text])
+
+  /**
+   * Hold what is in the box, as it changes — written at once rather than on a
+   * timer, so there is nothing to flush when the page is reloaded under it.
+   * Emptied, or put back to exactly what was composed, is not an edit.
+   */
+  const hold = (next: string, where: string) => {
+    const mine = next.trim().length > 0 && next !== composed.text
+    edited.current = mine
+    under.current = project
+    keepDraft(project, mine ? { base: composed.text, text: next, dir: where } : null)
+  }
 
   const canStart = Boolean(dir) && text.trim().length > 0 && !busy
 
@@ -112,7 +160,10 @@ export function StartPanel({
         <span className="sr-only">What this session will be told</span>
         <textarea
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => {
+            setText(e.target.value)
+            hold(e.target.value, dir)
+          }}
           rows={8}
           spellCheck={false}
           className="said border-input bg-background focus-visible:ring-ring block w-full min-w-0 resize-y rounded-md border p-1.5 text-[11px] leading-snug focus-visible:ring-2 focus-visible:outline-none"
@@ -131,7 +182,11 @@ export function StartPanel({
           <span className="text-muted-foreground shrink-0 text-[10px]">in</span>
           <select
             value={dir}
-            onChange={(e) => setDir(e.target.value)}
+            onChange={(e) => {
+              setDir(e.target.value)
+              /* Only beside an edit: a directory alone is not worth holding a prompt for. */
+              if (edited.current) hold(text, e.target.value)
+            }}
             className="border-input bg-background min-w-0 flex-1 truncate rounded-md border px-1.5 py-1 text-[11px]"
           >
             {dirs.map((d) => (
@@ -161,7 +216,12 @@ export function StartPanel({
           void start({ prompt: text, dir, refs: refs.map((r) => r.ref) })
             .then((result) => {
               setSaid(result as Started)
-              if ((result as Started).ok) onStarted()
+              if ((result as Started).ok) {
+                /* Sent: it is no longer a draft. The words stay in the box, as they always did. */
+                edited.current = false
+                keepDraft(project, null)
+                onStarted()
+              }
             })
             .finally(() => setBusy(false))
         }}

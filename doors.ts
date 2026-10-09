@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto'
+import { establishBuild, mintTicket, refuseTicket, type Reply } from 'kehikot-module-protocol/serve'
 
 import { ID, MANIFEST, VERSION } from './manifest.ts'
 import { readScope, type Scope } from './scope.ts'
@@ -7,6 +7,7 @@ import { lastSaid, opening, stampFor, transcript, type Event } from './transcrip
 import { start } from './start.ts'
 
 export { MANIFEST }
+export type { Reply }
 
 /**
  * Every decision this module makes about an HTTP request, with no socket in
@@ -47,14 +48,18 @@ export { MANIFEST }
  * between "cannot read the answer" and "cannot make the request".
  *
  * New on every process start, so a ticket does not outlive the program that
- * issued it, and never written to disk.
+ * issued it, and never written to disk. Minted, compared (in constant time) and
+ * refused by the protocol's own helpers, and carried in the one header every
+ * module uses — see the protocol's docs/module-plumbing.md.
  */
-export const TICKET = randomUUID()
+export const TICKET = mintTicket()
 
-export interface Reply {
-  status: number
-  body: unknown
-}
+/** What this process is built from, said in the manifest, the health check, the page and every answer. */
+export const BUILD = establishBuild({ version: VERSION, dir: import.meta.dirname })
+
+const NO_TICKET =
+  'That request did not carry this module’s write ticket. The ticket is printed into the page this module ' +
+  'serves and is new on every start, so a page holding an old one only has to be reloaded.'
 
 const ok = (body: unknown): Reply => ({ status: 200, body })
 const refuse = (status: number, why: string): Reply => ({ status, body: { ok: false, why } })
@@ -252,13 +257,10 @@ export async function answer(
     if (method !== 'POST') return refuse(405, 'Starting a session is a POST.')
     /* The ticket, before anything is read out of the body. See `TICKET` above
        for what this does and does not protect. */
-    if (ticket !== TICKET) {
-      return refuse(
-        403,
-        'That request did not carry this module’s write ticket. The ticket is printed into the page this module ' +
-          'serves and is new on every start, so a page holding an old one only has to be reloaded.',
-      )
-    }
+    /* Marked `refused: 'ticket'`, so the page's own `ask()` knows it is older than this server and
+       reloads itself. The sentence is under `error` there, which is the protocol's spelling. */
+    const refused = refuseTicket(ticket, TICKET, NO_TICKET)
+    if (refused) return refused
     if (!body) return refuse(400, 'That was not a request this module could read as JSON.')
     const dir = typeof body.dir === 'string' ? body.dir : ''
     const prompt = typeof body.prompt === 'string' ? body.prompt : ''

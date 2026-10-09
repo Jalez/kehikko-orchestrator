@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+import { Cover, coverFor, useHost, useServerStanding, type CoverState } from 'kehikot-module-protocol/client/react'
+
 import type { Named } from '../compose.ts'
 import { failed, roster, thread, type Event, type Roster, type Row } from '@/api/client.ts'
 import { StartPanel } from '@/view/start-panel.tsx'
 import { TranscriptView } from '@/view/transcript-view.tsx'
 import { SessionRow } from '@/view/session-row.tsx'
-import { useKehikot } from '@/wire/use-kehikot.ts'
+import { useKinds } from '@/live/use-kinds.ts'
+import { keepOpen, readOpen } from '@/store/held.ts'
 import { ID } from '../manifest.ts'
 
 /**
@@ -40,8 +43,40 @@ const ROSTER_MS = 4000
  */
 const THREAD_MS = 1500
 
+/**
+ * How long this page gives itself to answer a walk: 900ms, this module's own
+ * number, not the client's 500. The host gives a walk 1200ms and then treats
+ * silence as "not found", and 900 leaves this page room for a loopback fetch of
+ * its own roster while still beating that clock with a sentence a person can read.
+ */
+const GOTO_BACKSTOP_MS = 900
+
 export function App() {
-  const wire = useKehikot(ID)
+  /* A greeting is a new conversation with the host, and `live.get` is asked again for it. */
+  const [greetings, setGreetings] = useState(0)
+  const host = useHost(
+    ID,
+    {
+      onHello: () => setGreetings((n) => n + 1),
+      /* Nothing on this page is a reference, so there is nothing to walk to.
+         Answered rather than left to the host's timeout — a hundred
+         milliseconds of a container doing nothing is worse than a sentence. */
+      onGoto: (_message, answerBack) =>
+        answerBack(false, 'This container lists sessions rather than references, so there is nothing here to walk to.'),
+    },
+    { gotoBackstop: GOTO_BACKSTOP_MS },
+  )
+  /* How this page's own server last answered: `down` when nothing did, `stale` when it has restarted under this page. */
+  const server = useServerStanding()
+  const { epic, selection, projectPath } = host
+  /*
+   * The prompt the host composed for this container, and whether it has pinned
+   * it. This module declares `prompt: true` and must work when there is none,
+   * so null is an ordinary state with the fallback text shown in its place.
+   */
+  const prompt = host.context?.prompt ?? null
+  const pinned = host.context?.pinned ?? false
+  const kinds = useKinds(epic, greetings, host.request)
   const [list, setList] = useState<Roster | null>(null)
   const [listWhy, setListWhy] = useState<string | null>(null)
   const [open, setOpen] = useState<string | null>(null)
@@ -50,7 +85,7 @@ export function App() {
   const [fresh, setFresh] = useState(0)
   const stamp = useRef(0)
 
-  const refsKey = wire.selection.join(',')
+  const refsKey = selection.join(',')
 
   /**
    * Read the roster.
@@ -77,15 +112,42 @@ export function App() {
     return () => clearInterval(timer)
   }, [readRoster])
 
+  /**
+   * Open a session's transcript, or close it, and hold which across a reload
+   * of this page — with the epic it was opened under. See `store/held.ts`.
+   */
+  const choose = useCallback(
+    (session: string | null) => {
+      setOpen(session)
+      keepOpen(projectPath, session ? { epic, session } : null)
+    },
+    [projectPath, epic],
+  )
+
   /*
    * A session opened by hand stays open only until the canvas changes epic.
    * The epic switch clears the host's selection, so the roster widens to every
    * session and would still contain this one, with a transcript that belongs to
    * the references the reader has just left.
+   *
+   * The first time this page knows where it stands — greeted, or sure nobody
+   * will — is not a change of epic: it is a fresh page, and the session that was
+   * open under this same epic before the reload is opened again.
    */
+  const settled = host.where !== 'listening'
+  const stood = useRef(false)
   useEffect(() => {
+    if (!settled) return
+    if (!stood.current) {
+      stood.current = true
+      const held = readOpen(projectPath)
+      setOpen(held && held.epic === epic ? held.session : null)
+      return
+    }
     setOpen(null)
-  }, [wire.epic])
+    keepOpen(projectPath, null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the epic moving is the whole trigger
+  }, [epic, settled])
 
   /*
    * The open session's transcript, followed.
@@ -142,21 +204,32 @@ export function App() {
    */
   const named: Named[] = useMemo(
     () =>
-      wire.selection.map((ref) => ({
+      selection.map((ref) => ({
         ref,
-        kind: wire.kinds[ref]?.kind ?? '',
-        title: wire.kinds[ref]?.title ?? '',
+        kind: kinds[ref]?.kind ?? '',
+        title: kinds[ref]?.title ?? '',
       })),
-    [wire.selection, wire.kinds],
+    [selection, kinds],
   )
 
   const rows: Row[] = list?.sessions ?? []
   const openRow = rows.find((r) => r.sessionId === open) ?? null
 
+  /*
+   * Every not-ready moment is the protocol's one cover. This page needs no project and no epic —
+   * unframed it still reads the roster — so the host's side of it is only `waiting`; the rest is
+   * this page's own server: restarted under it (the page reloads), not answering, or not read yet.
+   * A roster already on screen is not replaced by `loading`, and a refusal is said in the legend.
+   */
+  const cover: CoverState | null =
+    server === 'stale'
+      ? 'stale'
+      : (coverFor(host, {}) ?? (server === 'down' ? 'down' : !list && !listWhy ? 'loading' : null))
+
   return (
     <div className="container flex h-full min-w-0 flex-col text-sm">
       {/* Unframed only. See the note at the top of this file. */}
-      {wire.at === 'unhosted' ? (
+      {host.where === 'unhosted' ? (
         <header className="min-w-0 border-b px-2 py-1.5">
           <h1 className="text-xs font-medium">Orchestrator</h1>
           <p className="text-muted-foreground text-[10px]">
@@ -166,28 +239,28 @@ export function App() {
         </header>
       ) : null}
 
-      {wire.at === 'listening' ? (
-        <p className="text-muted-foreground p-2 text-[11px]">Waiting to see whether a host greets this page…</p>
-      ) : null}
+      {cover ? <Cover state={cover} name="Orchestrator" onRetry={readRoster} /> : null}
 
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col @[34rem]:flex-row">
+      {/* Kept mounted under a cover, so a prompt somebody has edited survives the server coming back. */}
+      <div className={`${cover ? 'hidden' : 'flex'} min-h-0 min-w-0 flex-1 flex-col @[34rem]:flex-row`}>
         <div className="flex min-h-0 min-w-0 flex-col @[34rem]:w-1/2 @[34rem]:border-r">
-          <Legend list={list} why={listWhy} pinned={wire.pinned} epic={wire.epic} />
+          <Legend list={list} why={listWhy} pinned={pinned} epic={epic} />
           <div className="min-h-0 min-w-0 flex-1 overflow-y-auto">
             {rows.map((row) => (
               <SessionRow
                 key={row.sessionId}
                 row={row}
                 open={row.sessionId === open}
-                onOpen={() => setOpen(row.sessionId === open ? null : row.sessionId)}
+                onOpen={() => choose(row.sessionId === open ? null : row.sessionId)}
               />
             ))}
           </div>
           <StartPanel
             refs={named}
-            prompt={wire.prompt}
+            prompt={prompt}
             dirs={list?.dirs ?? []}
             scoped={list?.scoped ?? false}
+            project={projectPath}
             onStarted={readRoster}
           />
         </div>
@@ -238,7 +311,8 @@ function Legend({
   epic: string | null
 }) {
   if (why) return <p className="text-destructive border-b p-2 text-[11px]">{why}</p>
-  if (!list) return <p className="text-muted-foreground border-b p-2 text-[11px]">Reading the roster…</p>
+  /* Not read yet is the shared `loading` cover, drawn by `App`. */
+  if (!list) return null
 
   const parts: string[] = []
   parts.push(`${list.sessions.length} of ${list.total}`)
