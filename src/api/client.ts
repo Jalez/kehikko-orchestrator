@@ -39,6 +39,8 @@ export interface Roster {
   scoped: boolean
   dirs: string[]
   refs: string[]
+  /** The references every session was compared with besides; absent from a server older than the field. */
+  among?: string[]
   /** How many sessions there are before the selection filter. */
   total: number
   /** How many were actually compared against the selection. */
@@ -92,11 +94,11 @@ async function door<T>(path: string, options?: AskServerOptions): Promise<T | Re
 export const failed = (r: unknown): r is Refused =>
   typeof r === 'object' && r !== null && (r as { ok?: unknown }).ok === false
 
-export function roster(refs: string[]): Promise<Roster | Refused> {
+export function roster(refs: string[], among: readonly string[] = []): Promise<Roster | Refused> {
   /* `refs` are opaque strings the canvas chose and are encoded rather than
      trusted to be URL-safe: `!12` and `#131` both contain characters a query
      string reads as punctuation. */
-  return door<Roster>('api/sessions', { query: { refs: refs.length ? refs.join(',') : null } })
+  return door<Roster>('api/sessions', { query: { refs: refs.length ? refs.join(',') : null, among: among.length ? among.join(',') : null } })
 }
 
 export function thread(session: string, since: number): Promise<Thread | Refused> {

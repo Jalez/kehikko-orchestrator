@@ -128,15 +128,34 @@ const CONSIDER = 80
  * must read that as NOT KNOWN rather than NOT OURS. A session spawned four
  * seconds ago is exactly this case. Dropping it would mean pressing Start and
  * watching the list not change, which reads as a button that did nothing.
+ *
+ * ## `among`: which references a session names, for a caller that asks
+ *
+ * `refs` is the selection and FILTERS: only sessions about one of them are
+ * answered. `among` filters nothing. It is a list of references the page wants
+ * each session compared with, and every answered row says which of `refs` and
+ * `among` it names (`Tied.refs`). That is all the page needs to say what ties a
+ * session to a part of an epic, and this door never hears what is picked.
+ *
+ * A session whose opening could not be read is still not known rather than not
+ * ours: it is answered as naming the selection it was kept for, and nothing of
+ * `among`.
  */
-async function matching(rows: Runner[], refs: string[]): Promise<{ rows: Runner[]; considered: number; cut: boolean }> {
-  if (!refs.length) return { rows, considered: rows.length, cut: false }
+export async function matching(
+  rows: Runner[],
+  refs: string[],
+  among: string[] = [],
+  read: (sessionId: string) => Promise<string> = openingOf,
+): Promise<{ rows: Tied[]; considered: number; cut: boolean }> {
+  if (!refs.length && !among.length) return { rows: rows.map((row) => ({ ...row, refs: [] })), considered: rows.length, cut: false }
   const head = rows.slice(0, CONSIDER)
-  const kept: Runner[] = []
+  const asked = [...new Set([...refs, ...among])]
+  const kept: Tied[] = []
   await Promise.all(
     head.map(async (row) => {
-      const text = `${row.name}\n${await openingOf(row.sessionId)}`
-      if (!text.trim() || refs.some((ref) => text.includes(ref))) kept.push(row)
+      const text = `${row.name}\n${await read(row.sessionId)}`
+      const names = text.trim() ? asked.filter((ref) => text.includes(ref)) : [...refs]
+      if (!refs.length || !text.trim() || names.some((ref) => refs.includes(ref))) kept.push({ ...row, refs: names })
     }),
   )
   /* `Promise.all` finished them in whatever order they resolved, and the order
@@ -168,7 +187,17 @@ function num(raw: string | null, fallback: number): number {
   return Number.isFinite(n) && n > 0 ? n : fallback
 }
 
-export interface Row extends Runner {
+/** A session, and the references it names among the ones it was compared with. */
+export interface Tied extends Runner {
+  /** Which of the asked references this session's name or opening names. Empty when none, and when none was asked. */
+  refs: string[]
+}
+
+/** How many references a caller may ask each session to be compared with, and how long one may be. */
+const AMONG = 256
+const REF_LENGTH = 200
+
+export interface Row extends Tied {
   /** The last thing this session said in prose, for the roster caption. */
   said: Event | null
 }
@@ -201,8 +230,15 @@ export async function answer(
        is an opaque string the canvas chose, and the only thing done with it
        here is a substring search. */
     const refs = (params.get('refs') ?? '').split(',').map((r) => r.trim()).filter(Boolean)
+    /* What each session is to be compared with besides, for a page that narrows by them. Bounded:
+       every one of them is a substring search over eighty openings. */
+    const among = (params.get('among') ?? '')
+      .split(',')
+      .map((r) => r.trim())
+      .filter((r) => r && r.length <= REF_LENGTH)
+      .slice(0, AMONG)
     const all = await runners(scope.dirs)
-    const { rows, considered, cut } = await matching(all, refs)
+    const { rows, considered, cut } = await matching(all, refs, among)
     const withSaid: Row[] = await Promise.all(
       rows.slice(0, num(params.get('limit'), 60)).map(async (row) => ({
         ...row,
@@ -217,6 +253,7 @@ export async function answer(
       scoped: scope.dirs.length > 0,
       dirs: scope.dirs,
       refs,
+      among,
       total: all.length,
       considered,
       cut,

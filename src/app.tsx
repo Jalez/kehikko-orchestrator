@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import { Cover, coverFor, useHost, useServerStanding, type CoverState } from 'kehikot-module-protocol/client/react'
+import { Cover, coverFor, useFocus, useHost, useServerStanding, type CoverState } from 'kehikot-module-protocol/client/react'
 
 import type { Named } from '../compose.ts'
 import { failed, roster, thread, type Event, type Roster, type Row } from '@/api/client.ts'
@@ -9,6 +9,7 @@ import { TranscriptView } from '@/view/transcript-view.tsx'
 import { SessionRow } from '@/view/session-row.tsx'
 import { useKinds } from '@/live/use-kinds.ts'
 import { opened } from '@/store/held.ts'
+import { NOUN, anchorOf, inHand, readFor, refsHeld } from '@/focus.ts'
 import { ID } from '../manifest.ts'
 
 /**
@@ -93,8 +94,17 @@ export function App() {
    * selected re-asks immediately instead of at the next poll — a filter that
    * takes four seconds to apply reads as a filter that did not work.
    */
+  /*
+   * The parts of the epic a person picked out. A session is tied to a part by the references it
+   * names, so while parts are picked the roster is asked which of the epic's references each
+   * session names — all of them, picked or not: what is picked is the rule's question, and the
+   * server is never told. See `focus.ts`.
+   */
+  const focus = useFocus({ parts: host.parts, epic, projectPath })
+  const among = useMemo(() => (focus.focused ? refsHeld(focus.parts) : []), [focus])
+
   const readRoster = useCallback(() => {
-    void roster([...selection]).then((answer) => {
+    void roster([...selection], among).then((answer) => {
       if (failed(answer)) {
         setListWhy(answer.why)
         return
@@ -102,7 +112,7 @@ export function App() {
       setListWhy(null)
       setList(answer)
     })
-  }, [selection])
+  }, [selection, among])
 
   useEffect(() => {
     readRoster()
@@ -211,8 +221,15 @@ export function App() {
     [selection, kinds],
   )
 
-  const rows: Row[] = list?.sessions ?? []
-  const openRow = rows.find((r) => r.sessionId === open) ?? null
+  const every: Row[] = list?.sessions ?? []
+  const openRow = every.find((r) => r.sessionId === open) ?? null
+  /* Until the roster read for these references has answered, what each session names is not known,
+     and nothing is taken away on a guess: every row is kept as it was. */
+  const compared = readFor(list?.among, among)
+  const { shown: rows, empty: noneInFocus } = focus.narrow(every, anchorOf, {
+    noun: NOUN,
+    keep: (row) => !compared || inHand(row, open, selection),
+  })
 
   /*
    * Every not-ready moment is the protocol's one cover. This page needs no project and no epic —
@@ -240,7 +257,7 @@ export function App() {
       {/* Kept mounted under a cover, so a prompt somebody has edited survives the server coming back. */}
       <div className={`${cover ? 'hidden' : 'flex'} min-h-0 min-w-0 flex-1 flex-col @[34rem]:flex-row`}>
         <div className="flex min-h-0 min-w-0 flex-col @[34rem]:w-1/2 @[34rem]:border-r">
-          <Legend list={list} why={listWhy} pinned={pinned} epic={epic} />
+          <Legend list={list} drawn={rows.length} why={listWhy} pinned={pinned} epic={epic} />
           <div className="min-h-0 min-w-0 flex-1 overflow-y-auto">
             {rows.map((row) => (
               <SessionRow
@@ -250,6 +267,12 @@ export function App() {
                 onOpen={() => choose(row.sessionId === open ? null : row.sessionId)}
               />
             ))}
+            {/* The pick left no session. One sentence where the rows were, and nothing else about the pick anywhere. */}
+            {noneInFocus ? (
+              <p className="text-muted-foreground p-2 text-[11px]" data-none-in-focus>
+                {noneInFocus}
+              </p>
+            ) : null}
           </div>
           <StartPanel
             refs={named}
@@ -297,11 +320,14 @@ export function App() {
  */
 function Legend({
   list,
+  drawn,
   why,
   pinned,
   epic,
 }: {
   list: Roster | null
+  /** How many rows are drawn. */
+  drawn: number
   why: string | null
   pinned: boolean
   epic: string | null
@@ -311,7 +337,7 @@ function Legend({
   if (!list) return null
 
   const parts: string[] = []
-  parts.push(`${list.sessions.length} of ${list.total}`)
+  parts.push(`${drawn} of ${list.total}`)
   if (list.refs.length) parts.push(`matching ${list.refs.join(', ')}`)
   parts.push(list.scoped ? `in ${list.dirs.length} director${list.dirs.length === 1 ? 'y' : 'ies'}` : 'on this machine')
 
@@ -325,7 +351,7 @@ function Legend({
       ) : null}
       {list.cut ? (
         <p className="truncate">
-          Only the {list.considered} most recent sessions were compared against the selection; older ones are not shown.
+          Only the {list.considered} most recent sessions were compared; older ones are not shown.
         </p>
       ) : null}
       {/* Pinning is said out loud because the protocol's whole argument for the
