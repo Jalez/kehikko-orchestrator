@@ -180,8 +180,14 @@ export const MANIFEST: Manifest = manifestSchema.parse({
   entry: '/app',
   modes: [{ id: 'orchestrator', label: 'Sessions', scope: 'epic' }],
   extensions: { emits: [], consumes: [] },
-  /* Why this module has nothing to narrow by the parts of an epic. */
-  partless: 'Lists agent sessions, which name refs only in passing; the owner chose not to narrow them by part.',
+  /*
+   * The roster follows the parts of the epic a person picked out. A part lists
+   * references and a session is about the references its opening names, so with
+   * parts picked the roster is the sessions on a picked part's references, the
+   * session whose transcript is open, and the sessions on what is selected.
+   * `src/focus.ts` is the whole of it.
+   */
+  reacts: ['parts'],
   declares: {
     protocol: `>=${PROTOCOL} <${PROTOCOL + 1}`,
     uses: ['live:read'],

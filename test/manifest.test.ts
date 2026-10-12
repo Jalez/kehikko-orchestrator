@@ -37,6 +37,12 @@ describe('the manifest', () => {
     expect(MANIFEST.declares.uses).toEqual(['live:read'])
   })
 
+  test('follows the picked parts of the epic, and no longer says it has nothing a part could own', () => {
+    /* A session names references and a part lists them; `keep` holds what is selected and open. */
+    expect(MANIFEST.reacts).toContain('parts')
+    expect(MANIFEST.partless).toBeUndefined()
+  })
+
   test('names no MCP door', () => {
     /* Deliberate. The one thing this module can do that nothing else can is
        start a process, and an MCP tool for that is an agent spawning agents

@@ -34,6 +34,19 @@ polled, drawn as turns, tool calls and results. Not a terminal: see
 allow-list the process was started with. The prompt is shown, and editable,
 before the button does anything.
 
+## Under a pick of the epic's parts
+
+A part of an epic lists references, and a session is about the references its
+opening names. With nothing picked the roster is as it always was. With parts
+picked it is the sessions on a picked part's references; a session that names
+none is in no part and is back when nothing is picked. What is in hand stays:
+the session whose transcript is open, and the sessions on the references a
+person selected. A pick that leaves no session says one sentence where the rows
+were, and nothing else on the page is about the pick. The rule is the
+protocol's (`useFocus().narrow`); `src/focus.ts` says what a session is tied
+to. The server is asked which references each session names (`among`) and is
+never told what is picked.
+
 ## The three settings
 
 | | |
