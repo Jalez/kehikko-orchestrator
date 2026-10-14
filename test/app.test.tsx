@@ -46,8 +46,26 @@ const say = async (type: 'kehikot.hello' | 'kehikot.context', context: Record<st
   })
 }
 const cover = () => document.querySelector('[data-cover]')
+/* What the page said to its host about its header, and the answers to presses. */
+type Heard = { type: string; items?: { id: string; kind: string; confirm?: boolean; agents?: boolean; state?: string; result?: string | null; disabled?: string | null }[]; id?: string; ok?: boolean; why?: string }
+let heard: Heard[] = []
+const listen = (event: MessageEvent) => {
+  const data = event.data as { type?: string } | null
+  if (data && (data.type === 'kehikot.header' || data.type === 'kehikot.pressed')) heard.push(data as Heard)
+}
+const declared = () => heard.filter((one) => one.type === 'kehikot.header')
+const startItem = () => declared().at(-1)?.items?.find((one) => one.id === 'start')
+const pressStart = async (id = 'p1', item = 'start') => {
+  await act(async () => {
+    window.postMessage({ type: 'kehikot.press', protocol: 2, id, item }, '*')
+    await new Promise((resolve) => setTimeout(resolve, 30))
+  })
+}
 
 beforeEach(() => {
+  heard = []
+  window.addEventListener('message', listen)
+  localStorage.removeItem('kehikot.orchestrator.header-drawn')
   server = 'up'
   asked = []
   dirs = []
@@ -74,6 +92,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup()
+  window.removeEventListener('message', listen)
   globalThis.fetch = realFetch
   document.documentElement.className = ''
 })
@@ -250,13 +269,58 @@ describe('what somebody was in the middle of survives the page reloading under i
     await say('kehikot.hello', here)
     fireEvent.change(await box(), { target: { value: 'send these words' } })
     expect(draft()).not.toBeNull()
-    await waitFor(() => expect((screen.getByRole('button', { name: 'Start' }) as HTMLButtonElement).disabled).toBe(false))
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Start' }))
-      await new Promise((resolve) => setTimeout(resolve, 30))
-    })
-    expect(document.body.textContent).toContain('Started (pid 4242)')
+    await waitFor(() => expect(startItem()?.disabled).toBeNull())
+    await pressStart()
+    await waitFor(() => expect(startItem()?.result).toBe('Started · pid 4242'))
+    /* What ran is still said, in the page: nobody should have to read the source to find out. */
+    expect(document.body.textContent).toContain('"claude","--bg","x"')
     expect(draft()).toBeNull()
+  })
+
+  test('Start is the header’s: confirmed by the host, never pressed by an agent, and the page has no button for it', async () => {
+    dirs = ['/work/one']
+    render(<App />)
+    await say('kehikot.hello', here)
+    await waitFor(() => expect(startItem()).toBeDefined())
+    expect(startItem()).toMatchObject({ kind: 'run', confirm: true, state: 'idle', disabled: null })
+    expect(startItem()?.agents).not.toBe(true)
+    expect(screen.queryByRole('button', { name: 'Start' })).toBeNull()
+  })
+
+  test('it says why it cannot be started, in the item: no directory, or an empty prompt', async () => {
+    dirs = []
+    render(<App />)
+    await say('kehikot.hello', here)
+    await waitFor(() => expect(startItem()?.disabled).toContain('No working directory is configured'))
+    await pressStart('p9')
+    expect(heard.filter((one) => one.type === 'kehikot.pressed').at(-1)).toMatchObject({ id: 'p9', ok: false })
+    expect(asked.some((one) => one.url.startsWith('api/start'))).toBe(false)
+    dirs = ['/work/one']
+    await say('kehikot.context', { ...here, project: 'p2' })
+  })
+
+  test('typing in the prompt declares nothing again', async () => {
+    dirs = ['/work/one']
+    render(<App />)
+    await say('kehikot.hello', here)
+    await waitFor(() => expect(startItem()).toBeDefined())
+    const count = declared().length
+    const b = await box()
+    fireEvent.change(b, { target: { value: 'one' } })
+    fireEvent.change(b, { target: { value: 'one two' } })
+    fireEvent.change(b, { target: { value: 'one two three' } })
+    await settle(100)
+    expect(declared().length).toBe(count)
+  })
+
+  test('the page’s own control is there until a host has pressed an item', async () => {
+    dirs = ['/work/one']
+    render(<App />)
+    await say('kehikot.hello', here)
+    await waitFor(() => expect(startItem()).toBeDefined())
+    expect(document.querySelector('[data-header-fallback]')).not.toBeNull()
+    await pressStart('p3')
+    expect(document.querySelector('[data-header-fallback]')).toBeNull()
   })
 
   test('a new prompt from the host still replaces an edit, as it always did, and the edit is forgotten', async () => {

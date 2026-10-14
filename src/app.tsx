@@ -4,7 +4,8 @@ import { Cover, coverFor, useFocus, useHost, useServerStanding, type CoverState 
 
 import type { Named } from '../compose.ts'
 import { failed, roster, thread, type Event, type Roster, type Row } from '@/api/client.ts'
-import { StartPanel } from '@/view/start-panel.tsx'
+import { StartPanel, type Press } from '@/view/start-panel.tsx'
+import { headerDrawn, rememberHeaderDrawn } from '@/header-fallback.tsx'
 import { TranscriptView } from '@/view/transcript-view.tsx'
 import { SessionRow } from '@/view/session-row.tsx'
 import { useKinds } from '@/live/use-kinds.ts'
@@ -55,10 +56,18 @@ const GOTO_BACKSTOP_MS = 900
 export function App() {
   /* A greeting is a new conversation with the host, and `live.get` is asked again for it. */
   const [greetings, setGreetings] = useState(0)
+  const presses = useRef<Press | null>(null)
+  /* Whether a host has ever pressed a header item: such a host draws the header, and this page draws none of its own. */
+  const [drawn, setDrawn] = useState(headerDrawn)
   const host = useHost(
     ID,
     {
       onHello: () => setGreetings((n) => n + 1),
+      onPress: (press) => {
+        rememberHeaderDrawn()
+        setDrawn(true)
+        return presses.current ? presses.current(press) : 'There is nothing to start from yet.'
+      },
       /* Nothing on this page is a reference, so there is nothing to walk to.
          Answered rather than left to the host's timeout — a hundred
          milliseconds of a container doing nothing is worse than a sentence. */
@@ -281,6 +290,9 @@ export function App() {
             scoped={list?.scoped ?? false}
             project={projectPath}
             onStarted={readRoster}
+            header={cover ? undefined : host.header}
+            presses={presses}
+            drawn={host.where === 'hosted' && drawn}
           />
         </div>
 

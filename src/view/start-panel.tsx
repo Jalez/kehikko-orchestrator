@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react'
+
+import type { HeaderItemInput } from 'kehikot-module-protocol'
 
 import { compose, type Named } from '../../compose.ts'
 import { start, type Started } from '@/api/client.ts'
-import { Button } from '@/components/ui/button.tsx'
+import { HeaderFallback } from '@/header-fallback.tsx'
 import { PROMPT, drafts } from '@/store/held.ts'
 
 /**
@@ -44,6 +46,9 @@ import { PROMPT, drafts } from '@/store/held.ts'
  * make an ordinary state look like a broken one.
  */
 
+/** One press on a header item: nothing or `true` for taken, a sentence for not taken, and why. */
+export type Press = (press: { item: string; value?: string | boolean }) => string | boolean | void
+
 export function StartPanel({
   refs,
   prompt,
@@ -51,6 +56,9 @@ export function StartPanel({
   scoped,
   project,
   onStarted,
+  header,
+  presses,
+  drawn = false,
 }: {
   refs: Named[]
   prompt: string | null
@@ -59,6 +67,12 @@ export function StartPanel({
   /** The open project's directory, or null: what an unsent edit is held under. */
   project: string | null
   onStarted: () => void
+  /** Declare the header items, whole (`kehikot.header`); absent when there is nothing to start from (a cover) or in a test with no host. */
+  header?: (items: HeaderItemInput[]) => void
+  /** Where the page puts what takes a press on one of them. */
+  presses?: MutableRefObject<Press | null>
+  /** Whether a host has pressed one: such a host draws the header, and this page draws none of its own. */
+  drawn?: boolean
 }) {
   const composed = compose(prompt, refs)
   const [text, setText] = useState(composed.text)
@@ -125,11 +139,74 @@ export function StartPanel({
     drafts.at(project).keep(PROMPT, mine ? { base: composed.text, text: next, dir: where } : null)
   }
 
-  const canStart = Boolean(dir) && text.trim().length > 0 && !busy
+  /* Why it cannot be started just now, as a sentence, or null. The host draws it flat and says why. */
+  const cannot = !dirs.length
+    ? 'No working directory is configured, so nothing can be started.'
+    : !text.trim()
+      ? 'There is nothing to tell the session: the prompt is empty.'
+      : null
+  const canStart = Boolean(dir) && cannot === null && !busy
+
+  /*
+   * Start is the header's Run item and never the page's button. It is `confirm`: the host arms it with
+   * a first press and runs it with a second, which is the last look this panel always asked for —
+   * and a run that has to be confirmed is never one an agent presses. The press itself is what the
+   * button's click was, unchanged.
+   */
+  const startNow = (): string | true => {
+    if (!canStart) return cannot ?? 'A session is being started.'
+    setBusy(true)
+    setSaid(null)
+    void start({ prompt: text, dir, refs: refs.map((r) => r.ref) })
+      .then((result) => {
+        setSaid(result as Started)
+        if ((result as Started).ok) {
+          /* Sent: it is no longer a draft. The words stay in the box, as they always did. */
+          edited.current = false
+          drafts.at(project).keep(PROMPT, null)
+          onStarted()
+        }
+      })
+      .finally(() => setBusy(false))
+    return true
+  }
+  const startRef = useRef(startNow)
+  startRef.current = startNow
+
+  const items = useMemo<HeaderItemInput[]>(
+    () => [
+      {
+        kind: 'run',
+        id: 'start',
+        label: 'Start a session',
+        icon: 'play',
+        confirm: true,
+        state: busy ? 'busy' : said && !said.ok ? 'failed' : 'idle',
+        result: said ? (said.ok ? `Started · pid ${said.pid}` : 'Not started') : null,
+        disabled: cannot,
+      },
+    ],
+    [busy, said, cannot],
+  )
+  const itemsKey = JSON.stringify(items)
+  useEffect(() => {
+    header?.(JSON.parse(itemsKey) as HeaderItemInput[])
+  }, [header, itemsKey])
+  useEffect(() => () => header?.([]), [header])
+  useEffect(() => {
+    if (!presses) return
+    presses.current = ({ item }) => (item === 'start' ? startRef.current() : 'That is not something this panel has.')
+    return () => {
+      presses.current = null
+    }
+  }, [presses])
 
   return (
-    <section className="min-w-0 border-t p-2">
-      <h2 className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Start a session</h2>
+    <section className="relative min-w-0 border-t p-2">
+      {/* No heading and no button: Start is in the header's Run menu. The page's own way to it is only for a page no host draws for. */}
+      {!drawn ? (
+        <HeaderFallback items={items} onPress={(press) => (press.item === 'start' ? startRef.current() : undefined)} className="absolute top-1 right-2" />
+      ) : null}
 
       {refs.length ? (
         <p className="mt-1 text-[11px]">
@@ -205,38 +282,11 @@ export function StartPanel({
         </p>
       )}
 
-      <Button
-        type="button"
-        size="sm"
-        disabled={!canStart}
-        className="mt-1.5 w-full"
-        onClick={() => {
-          setBusy(true)
-          setSaid(null)
-          void start({ prompt: text, dir, refs: refs.map((r) => r.ref) })
-            .then((result) => {
-              setSaid(result as Started)
-              if ((result as Started).ok) {
-                /* Sent: it is no longer a draft. The words stay in the box, as they always did. */
-                edited.current = false
-                drafts.at(project).keep(PROMPT, null)
-                onStarted()
-              }
-            })
-            .finally(() => setBusy(false))
-        }}
-      >
-        {busy ? 'Starting…' : 'Start'}
-      </Button>
 
       {said ? (
         <div className="mt-1.5 min-w-0 text-[10px]">
           {said.ok ? (
             <>
-              <p className="text-foreground">
-                Started (pid {said.pid}). It takes a few seconds to appear on the roster — Claude Code writes its
-                transcript once the session begins saying things, and that file is what this list is read from.
-              </p>
               {/* The exact argv, because nobody should have to read this
                   module's source to find out what a button on a page ran. It is
                   an array and never a shell string; see `start.ts`. */}
