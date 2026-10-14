@@ -138,6 +138,9 @@
  */
 .container {
   container-type: inline-size;
+  /* Tailwind's `.container` also caps its width at the viewport breakpoints (768px from `md`), which left
+     a strip of nothing beside the page in any frame wider than that. This one is a size container only. */
+  max-width: none;
 }
 
 /*

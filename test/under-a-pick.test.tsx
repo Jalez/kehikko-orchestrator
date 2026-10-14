@@ -99,3 +99,15 @@ test('a pick that leaves no session says the one sentence where the rows were, a
   expect(none()).toBeNull()
   expect(drawn()).toEqual(['seam', 'tests', 'loose'])
 })
+
+test('nothing open: the hint sits in the roster column and no empty pane is reserved; opening one brings the pane', async () => {
+  render(<App />)
+  await say('kehikot.hello', { parts: [] })
+  const hint = document.querySelector('[data-pick-hint]')
+  expect(hint?.textContent).toMatch(/Pick a session to follow/)
+  /* The hint is inside the roster column, which is the only column. */
+  expect(hint?.parentElement?.parentElement?.parentElement?.children.length).toBe(1)
+  fireEvent.click(document.querySelector('button.w-full') as Element)
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 60)) })
+  expect(document.querySelector('[data-pick-hint]')).toBeNull()
+})
