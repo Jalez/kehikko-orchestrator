@@ -209,7 +209,7 @@ export function StartPanel({
       ) : null}
 
       {refs.length ? (
-        <p className="mt-1 text-[11px]">
+        <p className={`mt-1 text-[11px]${drawn ? '' : ' pr-5'}`}>
           on{' '}
           {refs.map((r, i) => (
             <span key={r.ref}>
@@ -220,7 +220,7 @@ export function StartPanel({
           ))}
         </p>
       ) : (
-        <p className="text-muted-foreground mt-1 text-[11px]">
+        <p className={`text-muted-foreground mt-1 text-[11px]${drawn ? '' : ' pr-5'}`}>
           Nothing is selected on the canvas, so this session would be started with no references. Pick some in another
           container and they arrive here.
         </p>
