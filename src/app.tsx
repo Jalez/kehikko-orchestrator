@@ -265,7 +265,7 @@ export function App() {
 
       {/* Kept mounted under a cover, so a prompt somebody has edited survives the server coming back. */}
       <div className={`${cover ? 'hidden' : 'flex'} min-h-0 min-w-0 flex-1 flex-col @[34rem]:flex-row`}>
-        <div className="flex min-h-0 min-w-0 flex-col @[34rem]:w-1/2 @[34rem]:border-r">
+        <div className={`flex min-h-0 min-w-0 flex-col ${openRow ? 'flex-1 @[34rem]:w-1/2 @[34rem]:flex-none @[34rem]:border-r' : 'flex-1'}`}>
           <Legend list={list} drawn={rows.length} why={listWhy} pinned={pinned} epic={epic} />
           <div className="min-h-0 min-w-0 flex-1 overflow-y-auto">
             {rows.map((row) => (
@@ -282,6 +282,13 @@ export function App() {
                 {noneInFocus}
               </p>
             ) : null}
+            {/* Nothing open: the hint lives here, so no half of the width is reserved for an empty pane. */}
+            {openRow ? null : (
+              <p className="text-muted-foreground p-2 text-[11px]" data-pick-hint>
+                Pick a session to follow what it is doing. What is shown is Claude Code’s own transcript, read from disk
+                as it is written — so a session that never announced itself to anything is still readable here.
+              </p>
+            )}
           </div>
           <StartPanel
             refs={named}
@@ -296,24 +303,17 @@ export function App() {
           />
         </div>
 
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col border-t @[34rem]:border-t-0">
-          {openRow ? (
-            <>
-              <header className="min-w-0 border-b px-2 py-1.5">
-                <p className="truncate text-xs font-medium">{openRow.name || openRow.id}</p>
-                <p className="text-muted-foreground truncate text-[10px]" title={openRow.cwd}>
-                  {openRow.state} · {openRow.cwd}
-                </p>
-              </header>
-              <TranscriptView events={events} since={fresh} why={threadWhy} />
-            </>
-          ) : (
-            <p className="text-muted-foreground p-3 text-[11px]">
-              Pick a session to follow what it is doing. What is shown is Claude Code’s own transcript, read from disk
-              as it is written — so a session that never announced itself to anything is still readable here.
-            </p>
-          )}
-        </div>
+        {openRow ? (
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col border-t @[34rem]:border-t-0">
+            <header className="min-w-0 border-b px-2 py-1.5">
+              <p className="truncate text-xs font-medium">{openRow.name || openRow.id}</p>
+              <p className="text-muted-foreground truncate text-[10px]" title={openRow.cwd}>
+                {openRow.state} · {openRow.cwd}
+              </p>
+            </header>
+            <TranscriptView events={events} since={fresh} why={threadWhy} />
+          </div>
+        ) : null}
       </div>
     </div>
   )
@@ -355,21 +355,21 @@ function Legend({
 
   return (
     <div className="text-muted-foreground min-w-0 border-b px-2 py-1 text-[10px]">
-      <p className="truncate">{parts.join(' · ')}</p>
+      <p className="break-words">{parts.join(' · ')}</p>
       {!list.scoped ? (
-        <p className="truncate">
+        <p className="break-words">
           ORCHESTRATOR_DIRS is unset, so nothing is filtered by directory and nothing can be started.
         </p>
       ) : null}
       {list.cut ? (
-        <p className="truncate">
+        <p className="break-words">
           Only the {list.considered} most recent sessions were compared; older ones are not shown.
         </p>
       ) : null}
       {/* Pinning is said out loud because the protocol's whole argument for the
           field is that a module pinned silently cannot tell a person's pin from
           a canvas that has not moved. */}
-      {pinned ? <p className="truncate">Held: this container keeps {epic ?? 'what it was last told'} until unpinned.</p> : null}
+      {pinned ? <p className="break-words">Held: this container keeps {epic ?? 'what it was last told'} until unpinned.</p> : null}
     </div>
   )
 }
