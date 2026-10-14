@@ -5,7 +5,7 @@ import { Cover, coverFor, useFocus, useHost, useServerStanding, type CoverState 
 import type { Named } from '../compose.ts'
 import { failed, roster, thread, type Event, type Roster, type Row } from '@/api/client.ts'
 import { StartPanel, type Press } from '@/view/start-panel.tsx'
-import { headerDrawn, rememberHeaderDrawn } from '@/header-fallback.tsx'
+import { fallbackShows, headerDrawn, rememberHeaderDrawn } from '@/header-fallback.tsx'
 import { TranscriptView } from '@/view/transcript-view.tsx'
 import { SessionRow } from '@/view/session-row.tsx'
 import { useKinds } from '@/live/use-kinds.ts'
@@ -57,7 +57,7 @@ export function App() {
   /* A greeting is a new conversation with the host, and `live.get` is asked again for it. */
   const [greetings, setGreetings] = useState(0)
   const presses = useRef<Press | null>(null)
-  /* Whether a host has ever pressed a header item: such a host draws the header, and this page draws none of its own. */
+  /* Whether a host has ever pressed a header item: with an older host (no `drawsHeader`) that is the only sign it draws the header. */
   const [drawn, setDrawn] = useState(headerDrawn)
   const host = useHost(
     ID,
@@ -299,7 +299,7 @@ export function App() {
             onStarted={readRoster}
             header={cover ? undefined : host.header}
             presses={presses}
-            drawn={host.where === 'hosted' && drawn}
+            drawn={!fallbackShows(host.where, host.drawsHeader, drawn)}
           />
         </div>
 
