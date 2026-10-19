@@ -99,9 +99,9 @@ export async function start(
     return {
       ok: false,
       error:
-        `No working directory is configured, so there is nowhere to start a session. Set ${DIRS_VAR} to a ` +
-        'colon-separated list of absolute paths and restart this module. There is deliberately no default: a ' +
-        'guessed path is an agent editing the wrong repository.',
+        `No working directory is configured, so there is nowhere to start a session. Open a project in the ` +
+        `host, or set ${DIRS_VAR} to a colon-separated list of absolute paths and restart this module. There is ` +
+        'deliberately no default: a guessed path is an agent editing the wrong repository.',
     }
   }
   if (!allowed(opts.dir, scope)) {

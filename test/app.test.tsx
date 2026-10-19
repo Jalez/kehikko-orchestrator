@@ -244,6 +244,21 @@ describe('what somebody was in the middle of survives the page reloading under i
     await waitFor(() => expect((screen.getByRole('combobox') as HTMLSelectElement).value).toBe('/work/two'))
   })
 
+  test('with a project id the draft is held under the id, so a rename keeps it', async () => {
+    const id = '33333333-3333-4333-8333-333333333333'
+    render(<App />)
+    await say('kehikot.hello', { ...here, projectId: id })
+    fireEvent.change(await box(), { target: { value: 'kept across a rename' } })
+    expect(JSON.parse(sessionStorage.getItem(`kehikot.orchestrator.draft:${id}`) ?? '{}')).toMatchObject({ prompt: { text: 'kept across a rename' } })
+    expect(sessionStorage.getItem('kehikot.orchestrator.draft:/tmp/p')).toBeNull()
+
+    cleanup()
+    render(<App />)
+    await settle(60)
+    await say('kehikot.hello', { ...here, projectPath: '/tmp/renamed', projectId: id })
+    expect((await box()).value).toBe('kept across a rename')
+  })
+
   test('an untouched prompt holds nothing, and an emptied or put-back one is forgotten', async () => {
     render(<App />)
     await say('kehikot.hello', here)

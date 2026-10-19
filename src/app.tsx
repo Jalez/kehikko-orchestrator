@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { Cover, coverFor, useFocus, useHost, useServerStanding, type CoverState } from 'kehikot-module-protocol/client/react'
+import { projectKey } from 'kehikot-module-protocol'
 
 import type { Named } from '../compose.ts'
 import { failed, roster, thread, type Event, type Roster, type Row } from '@/api/client.ts'
@@ -79,6 +80,9 @@ export function App() {
   /* How this page's own server last answered: `down` when nothing did, `stale` when it has restarted under this page. */
   const server = useServerStanding()
   const { epic, selection, projectPath } = host
+  /* What this page's browser storage is kept under: the host's project id, which a rename does not
+     change, and only without one (an older host) the path. */
+  const heldKey = projectKey(host)?.key ?? null
   /*
    * The prompt the host composed for this container, and whether it has pinned
    * it. This module declares `prompt: true` and must work when there is none,
@@ -113,7 +117,7 @@ export function App() {
   const among = useMemo(() => (focus.focused ? refsHeld(focus.parts) : []), [focus])
 
   const readRoster = useCallback(() => {
-    void roster([...selection], among).then((answer) => {
+    void roster([...selection], among, projectPath).then((answer) => {
       if (failed(answer)) {
         setListWhy(answer.why)
         return
@@ -121,7 +125,7 @@ export function App() {
       setListWhy(null)
       setList(answer)
     })
-  }, [selection, among])
+  }, [selection, among, projectPath])
 
   useEffect(() => {
     readRoster()
@@ -136,9 +140,9 @@ export function App() {
   const choose = useCallback(
     (session: string | null) => {
       setOpen(session)
-      opened.at(projectPath).keep(epic ?? '', session ? { session } : null)
+      opened.at(heldKey).keep(epic ?? '', session ? { session } : null)
     },
-    [projectPath, epic],
+    [heldKey, epic],
   )
 
   /*
@@ -157,12 +161,12 @@ export function App() {
     if (!settled) return
     if (!stood.current) {
       stood.current = true
-      setOpen(opened.at(projectPath).read(epic ?? '')?.session ?? null)
+      setOpen(opened.at(heldKey).read(epic ?? '')?.session ?? null)
       return
     }
     setOpen(null)
     /* Whatever was open under the epic just left is forgotten with it. */
-    const here = opened.at(projectPath)
+    const here = opened.at(heldKey)
     for (const was of Object.keys(here.all())) here.keep(was, null)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the epic moving is the whole trigger
   }, [epic, settled])
@@ -295,7 +299,8 @@ export function App() {
             prompt={prompt}
             dirs={list?.dirs ?? []}
             scoped={list?.scoped ?? false}
-            project={projectPath}
+            project={heldKey}
+            projectPath={projectPath}
             onStarted={readRoster}
             header={cover ? undefined : host.header}
             presses={presses}

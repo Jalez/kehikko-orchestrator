@@ -55,6 +55,7 @@ export function StartPanel({
   dirs,
   scoped,
   project,
+  projectPath = project,
   onStarted,
   header,
   presses,
@@ -66,6 +67,8 @@ export function StartPanel({
   scoped: boolean
   /** The open project's directory, or null: what an unsent edit is held under. */
   project: string | null
+  /** The open project's directory, sent with each request so the server follows a rename. Defaults to `project`. */
+  projectPath?: string | null
   onStarted: () => void
   /** Declare the header items, whole (`kehikot.header`); absent when there is nothing to start from (a cover) or in a test with no host. */
   header?: (items: HeaderItemInput[]) => void
@@ -157,7 +160,7 @@ export function StartPanel({
     if (!canStart) return cannot ?? 'A session is being started.'
     setBusy(true)
     setSaid(null)
-    void start({ prompt: text, dir, refs: refs.map((r) => r.ref) })
+    void start({ prompt: text, dir, refs: refs.map((r) => r.ref), project: projectPath })
       .then((result) => {
         setSaid(result as Started)
         if ((result as Started).ok) {
