@@ -12,7 +12,7 @@ import { allowed, DIRS_VAR, type Scope } from './scope.ts'
  * reads something and draws it; this one turns an HTTP request into a process
  * with a person's credentials, in a directory holding their work, with an
  * agent's permission to edit it. The rules below are lifted from
- * `roadmap/src/launch.ts`, whose opening paragraph is the one to keep in mind:
+ * the host's old `src/launch.ts`, whose opening paragraph is the one to keep in mind:
  *
  *   A registration names the directory, and one script inside it. Not a
  *   command line. A string handed to a shell would make a registration file a

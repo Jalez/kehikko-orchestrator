@@ -18,7 +18,7 @@ import { isAbsolute, resolve } from 'node:path'
  *
  * ## No default, ever
  *
- * `roadmap/src/dispatch.ts` had a default working directory once — a path that
+ * The host's old `src/dispatch.ts` had a default working directory once — a path that
  * did not exist on the machine — so its button spawned nothing, said it had
  * started something, and locked itself out for ten minutes. The version that
  * replaced it states the rule this file keeps:

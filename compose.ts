@@ -17,7 +17,7 @@
 /**
  * The durable name for a session this module started.
  *
- * Salvaged, with its reasoning, from `roadmap/src/dispatch.ts`:
+ * Salvaged, with its reasoning, from the host's old `src/dispatch.ts`:
  *
  *   A pid is not it: `claude --bg` hands off to a daemon and the process we
  *   spawned is gone within the second, taking the number with it. Nor is the

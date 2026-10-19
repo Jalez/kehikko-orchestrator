@@ -3,7 +3,7 @@ import { execFile } from 'node:child_process'
 /**
  * The Claude Code sessions on this machine.
  *
- * Salvaged from `roadmap/src/sessions.ts`, which is where the argument below
+ * Salvaged from the host's old `src/sessions.ts`, which is where the argument below
  * was worked out, and kept close to the original: two copies of a roster that
  * disagreed about what "busy" means would be two containers telling a person
  * different things about the same process.
@@ -169,8 +169,8 @@ export async function sessions(): Promise<Session[]> {
 /**
  * Is this session running inside that directory?
  *
- * On the path boundary, not on the string: `/p/roadmap` must not swallow
- * `/p/roadmap-notes`, and a roster that quietly included a neighbouring
+ * On the path boundary, not on the string: `/p/thesis` must not swallow
+ * `/p/thesis-notes`, and a roster that quietly included a neighbouring
  * checkout would be the same wrong number in a smaller font.
  */
 export function under(cwd: string, dir: string): boolean {

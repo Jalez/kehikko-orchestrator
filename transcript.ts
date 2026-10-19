@@ -4,7 +4,7 @@ import { open, readdir, stat } from 'node:fs/promises'
  * ## `node:fs`, and not `Bun.file`
  *
  * The salvaged original sliced its reads out of a `Bun.file` handle, because
- * the roadmap it came from is a Bun server. This module is not: `run.sh` ends in
+ * the host it came from is a Bun server. This module is not: `run.sh` ends in
  * `bunx vite`, `bunx` execs the `vite` bin, and that bin's shebang is
  * `#!/usr/bin/env node`. The dev server is a NODE process, `Bun` is not
  * defined in it, and every read in this file would have thrown at runtime while
@@ -17,7 +17,7 @@ import { open, readdir, stat } from 'node:fs/promises'
 /**
  * What a session actually said, read from Claude Code's own transcript.
  *
- * Salvaged from `roadmap/src/transcript.ts`, and the reason it exists there is
+ * Salvaged from the host's old `src/transcript.ts`, and the reason it exists there is
  * the reason it exists here, so it is repeated rather than referenced:
  *
  *   The host only hears from a session that calls its MCP tools, so picking
@@ -418,7 +418,7 @@ export async function stampFor(sessionId: string): Promise<number> {
  * How a session began, for telling one session from another.
  *
  * Salvaged whole, with its reasoning, because this module depends on it for the
- * same thing the roadmap did:
+ * same thing the host did:
  *
  *   The opening prompt is the only thing about a background session that never
  *   moves: the pid belongs to a launcher that exits, the name is derived and
