@@ -1,7 +1,9 @@
 import { establishBuild, mintTicket, refuseTicket, type Reply } from 'kehikot-module-protocol/serve'
 
 import { ID, MANIFEST, VERSION } from './manifest.ts'
-import { readScope, type Scope } from './scope.ts'
+import { hostHasProject } from 'kehikot-module-protocol/serve'
+
+import { readScope, withProject, type Scope } from './scope.ts'
 import { runners, type Runner } from './sessions.ts'
 import { lastSaid, opening, stampFor, transcript, type Event } from './transcript.ts'
 import { start } from './start.ts'
@@ -215,12 +217,19 @@ export async function answer(
   params: URLSearchParams,
   body: Record<string, unknown> | null,
   ticket: string | null,
-  scope: Scope = readScope(),
+  extra: Scope = readScope(),
+  hasProject: (folder: string) => Promise<boolean> = hostHasProject,
 ): Promise<Reply | null> {
   if (path === '/healthz') return ok({ ok: true, id: ID, version: VERSION })
 
+  /* The open project, as the page says it (`context.projectPath`) and the host confirms, with the
+     env list as an optional extra. A rename changes the path the page sends and nothing else. */
+  const scope = ['/api/scope', '/api/sessions', '/api/start'].includes(path)
+    ? await withProject(extra, params.get('project') ?? (body && typeof body.project === 'string' ? body.project : null), hasProject)
+    : extra
+
   if (path === '/api/scope') {
-    return ok({ ok: true, dirs: scope.dirs, rejected: scope.rejected, variable: 'ORCHESTRATOR_DIRS' })
+    return ok({ ok: true, dirs: scope.dirs, rejected: scope.rejected, project: scope.project ?? null, former: scope.former ?? [], variable: 'ORCHESTRATOR_DIRS' })
   }
 
   if (path === '/api/sessions') {
@@ -237,7 +246,7 @@ export async function answer(
       .map((r) => r.trim())
       .filter((r) => r && r.length <= REF_LENGTH)
       .slice(0, AMONG)
-    const all = await runners(scope.dirs)
+    const all = await runners([...scope.dirs, ...(scope.former ?? [])])
     const { rows, considered, cut } = await matching(all, refs, among)
     const withSaid: Row[] = await Promise.all(
       rows.slice(0, num(params.get('limit'), 60)).map(async (row) => ({
@@ -252,6 +261,7 @@ export async function answer(
          selection whose match was cut short by the window above. */
       scoped: scope.dirs.length > 0,
       dirs: scope.dirs,
+      former: scope.former ?? [],
       refs,
       among,
       total: all.length,

@@ -1,5 +1,10 @@
-import { existsSync, statSync } from 'node:fs'
-import { isAbsolute, resolve } from 'node:path'
+import { existsSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs'
+import { dirname, isAbsolute, resolve } from 'node:path'
+
+import { moduleFile, readProjectFile } from 'kehikot-module-protocol'
+import { hostHasProject } from 'kehikot-module-protocol/serve'
+
+import { ID } from './manifest.ts'
 
 /**
  * Which working copies this module is allowed to look at, and to start a
@@ -48,6 +53,14 @@ export interface Scope {
   dirs: string[]
   /** What was named and is not a directory on this machine, so the page can say so. */
   rejected: { path: string; why: string }[]
+  /** The open project's directory, when the host vouched for it (`withProject`). Absent for the plain env list. */
+  project?: string | null
+  /**
+   * Directories this same project used to live at: gone from disk, recorded under the project's
+   * own `.kehikot`, and so carried by a rename. A session whose cwd is under one is this project's.
+   * Never a place to START anything; only the roster reads them.
+   */
+  former?: string[]
 }
 
 /**
@@ -103,4 +116,71 @@ export function allowed(dir: string, scope: Scope): boolean {
   if (!dir) return false
   if (!isAbsolute(dir)) return false
   return scope.dirs.includes(resolve(dir))
+}
+
+/** The id in `<dir>/.kehikot/project.json`, or null. */
+export function projectIdAt(dir: string): string | null {
+  try {
+    const read = readProjectFile(JSON.parse(readFileSync(resolve(dir, '.kehikot', 'project.json'), 'utf8')))
+    return read ? read.id : null
+  } catch {
+    return null
+  }
+}
+
+/** How many past paths a project remembers. A project is not renamed a hundred times. */
+const PATHS_KEPT = 20
+
+/**
+ * The paths this project has been seen at, kept in `<project>/.kehikot/<module>/paths.json`, so the
+ * list moves with the folder when it is renamed or moved. Returns the ones that are gone from disk.
+ */
+function formerPaths(project: string, id: string | null): string[] {
+  const file = moduleFile(project, ID, 'paths')
+  if (!file) return []
+  let seen: string[] = []
+  try {
+    const parsed = JSON.parse(readFileSync(file, 'utf8')) as { id?: unknown; paths?: unknown }
+    const same = id === null || typeof parsed.id !== 'string' || parsed.id === id
+    if (same && Array.isArray(parsed.paths)) seen = parsed.paths.filter((p): p is string => typeof p === 'string' && isAbsolute(p))
+  } catch {
+    /* Nothing recorded yet, or not readable: this is the first path. */
+  }
+  const former = seen.filter((p) => p !== project && !existsSync(p))
+  if (!seen.includes(project)) {
+    try {
+      mkdirSync(dirname(file), { recursive: true })
+      writeFileSync(file, `${JSON.stringify({ id, paths: [...seen, project].slice(-PATHS_KEPT) }, null, 2)}\n`)
+    } catch {
+      /* Read-only project: the old paths just cannot be remembered. */
+    }
+  }
+  return former
+}
+
+/**
+ * The scope for one request: the project the page says is open, when the HOST says it is one, and
+ * `extra` (the `ORCHESTRATOR_DIRS` list) beside it as an optional further allow-list.
+ *
+ * The page sends `context.projectPath` and the host's `/host/is-project` decides whether it is a
+ * project (`hostHasProject`) — a request cannot name an arbitrary directory and have a session
+ * started there. A rename gives the page a new path and the same `project.json` id; sessions that
+ * were started under the old path stay this project's (`former`).
+ */
+export async function withProject(
+  extra: Scope,
+  given: unknown,
+  check: (folder: string) => Promise<boolean> = hostHasProject,
+): Promise<Scope> {
+  if (typeof given !== 'string' || !given.trim() || !isAbsolute(given.trim())) return extra
+  let project: string
+  try {
+    project = realpathSync(given.trim())
+    if (!statSync(project).isDirectory()) return extra
+  } catch {
+    return extra
+  }
+  if (!(await check(project))) return extra
+  const former = formerPaths(project, projectIdAt(project))
+  return { dirs: [project, ...extra.dirs.filter((d) => d !== project)], rejected: extra.rejected, project, former }
 }
