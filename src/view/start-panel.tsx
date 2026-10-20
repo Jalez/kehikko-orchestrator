@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type MutableRefObject } from 'rea
 
 import type { HeaderItemInput } from 'kehikot-module-protocol'
 
-import { compose, type Named } from '../../compose.ts'
+import { compose, placeOf, title, type Named, type PlaceContext } from '../../compose.ts'
 import { start, type Started } from '@/api/client.ts'
 import { HeaderFallback } from '@/header-fallback.tsx'
 import { PROMPT, drafts } from '@/store/held.ts'
@@ -52,6 +52,7 @@ export type Press = (press: { item: string; value?: string | boolean }) => strin
 export function StartPanel({
   refs,
   prompt,
+  where = null,
   dirs,
   scoped,
   project,
@@ -63,6 +64,8 @@ export function StartPanel({
 }: {
   refs: Named[]
   prompt: string | null
+  /** The host's context, for where in kehikko a session started here is from: what it is named by. */
+  where?: PlaceContext | null
   dirs: string[]
   scoped: boolean
   /** The open project's directory, or null: what an unsent edit is held under. */
@@ -78,6 +81,8 @@ export function StartPanel({
   drawn?: boolean
 }) {
   const composed = compose(prompt, refs)
+  const place = placeOf(where, refs.map((r) => r.ref))
+  const named = title(place)
   const [text, setText] = useState(composed.text)
   const [dir, setDir] = useState(dirs[0] ?? '')
   const [busy, setBusy] = useState(false)
@@ -160,7 +165,7 @@ export function StartPanel({
     if (!canStart) return cannot ?? 'A session is being started.'
     setBusy(true)
     setSaid(null)
-    void start({ prompt: text, dir, refs: refs.map((r) => r.ref), project: projectPath })
+    void start({ prompt: text, dir, refs: refs.map((r) => r.ref), project: projectPath, place })
       .then((result) => {
         setSaid(result as Started)
         if ((result as Started).ok) {
@@ -228,6 +233,13 @@ export function StartPanel({
           container and they arrive here.
         </p>
       )}
+
+      {/* The name it will be started with, read before the press like the prompt is. Claude Code names one with none. */}
+      {named ? (
+        <p className="text-muted-foreground mt-1 truncate text-[10px]" title={named} data-title>
+          named <span className="text-foreground">{named}</span>
+        </p>
+      ) : null}
 
       {!composed.fromHost ? (
         <p className="text-muted-foreground mt-1 text-[10px]">

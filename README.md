@@ -30,9 +30,13 @@ and never edited afterwards.
 polled, drawn as turns, tool calls and results. Not a terminal: see
 `transcript.ts` for why there is no pty here.
 
-**Starts a session.** `claude --bg <one prompt>`, in a directory from an
-allow-list the process was started with. The prompt is shown, and editable,
-before the button does anything.
+**Starts a session.** `claude --bg --name=<title> <one prompt>`, in a directory
+from an allow-list the process was started with. The prompt is shown, and
+editable, before the button does anything. The title is where in kehikko the
+session is from: the kehikko, the project, the epic and the parts it is for,
+`Main · orch · session-titles · Titles`, shown above the prompt. No reference
+numbers, states or authors. It is given once, at the start; a name a person sets
+later is theirs and nothing here changes it.
 
 ## Under a pick of the epic's parts
 

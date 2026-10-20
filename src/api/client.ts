@@ -1,6 +1,7 @@
 import { ask, type AskServerOptions } from 'kehikot-module-protocol/client'
 
 import type { Row } from '../../doors.ts'
+import type { Place } from '../../compose.ts'
 import type { Event } from '../../transcript.ts'
 
 export type { Event, Row }
@@ -118,6 +119,13 @@ export function scope(project: string | null = null): Promise<ScopeSaid | Refuse
  * and an agent would be told another. So the composition happens once, in
  * `compose()`, the page renders its output, and this posts the same characters.
  */
-export function start(body: { prompt: string; dir: string; refs: string[]; project?: string | null }): Promise<Started | Refused> {
+export function start(body: {
+  prompt: string
+  dir: string
+  refs: string[]
+  project?: string | null
+  /** Where the session is from, which the server makes its name out of (`title` in `compose.ts`). */
+  place?: Place | null
+}): Promise<Started | Refused> {
   return door<Started>('api/start', { body })
 }

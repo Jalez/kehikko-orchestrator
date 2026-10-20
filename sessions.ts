@@ -20,12 +20,14 @@ import { execFile } from 'node:child_process'
  * ## What was left behind, and why
  *
  * The original carried a `mark` — a state letter that a labelling cron
- * (`~/.claude/scripts/rename-conversations.py`) writes at the front of a
+ * (`~/.claude/scripts/rename-conversations.py`) wrote at the front of a
  * session's name, from which the old page took a colour. It is gone here. That
  * letter is a convention of one person's machine, written by a script this
  * module does not ship and cannot see; a module that coloured its rows by it
- * would show grey on every machine but one and would never say why. The name is
- * shown as it is.
+ * would show grey on every machine but one and would never say why. That
+ * script no longer rewrites names either. The name is shown as it is: for a
+ * session this module started, the kehikko, project, epic and parts it was
+ * started for (`title` in `compose.ts`), unless a person has renamed it since.
  *
  * `claimsToBeBusy` came over unchanged, because the reasoning attached to it is
  * the kind that gets re-derived wrongly.

@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 
-import { runToken } from './compose.ts'
+import { runToken, title, type Place } from './compose.ts'
 import { allowed, DIRS_VAR, type Scope } from './scope.ts'
 
 /**
@@ -25,10 +25,16 @@ import { allowed, DIRS_VAR, type Scope } from './scope.ts'
  *  - **The program is fixed.** `claude`, always, written in this file. Nothing
  *    that arrives over the wire chooses a program, and there is no field in the
  *    request that could.
- *  - **The arguments are fixed except one.** `--bg` and then exactly one
- *    string, the prompt. No flags come from the request. A request that could
- *    add a flag could add `--dangerously-skip-permissions`, and then this
- *    module would be a way to run anything.
+ *  - **The arguments are fixed except two.** `--bg`, then the name the
+ *    session starts with, then exactly one string, the prompt. No flags come
+ *    from the request. A request that could add a flag could add
+ *    `--dangerously-skip-permissions`, and then this module would be a way to
+ *    run anything. The name is not taken from the request either: the request
+ *    says where the session is from (`Place`), and `title()` in `compose.ts`
+ *    makes one line of plain text out of it here. It goes in as ONE element,
+ *    `--name=<title>`, so whatever it says is the value of `--name` and can
+ *    never be read as a flag of its own. With nothing known there is no name
+ *    and the argv is what it always was.
  *  - **argv, never a shell.** `spawn(cmd, args)` with no `shell: true` and no
  *    interpolation into a string anywhere on the path. The prompt is a single
  *    argv element, so a prompt containing `; rm -rf ~` is a prompt containing
@@ -66,6 +72,8 @@ const PROGRAM = 'claude'
 
 export interface Started {
   ok: boolean
+  /** The name the session was started with, or null when nothing was known to name it by. */
+  title?: string | null
   /** Present when a process was created, whether or not it went on to do anything. */
   pid?: number
   /** The exact argv, for the page to print. Never a shell string, because there is never one. */
@@ -92,7 +100,7 @@ export interface Started {
  * server with it.
  */
 export async function start(
-  opts: { prompt: string; dir: string; refs: string[] },
+  opts: { prompt: string; dir: string; refs: string[]; place?: Partial<Place> | null },
   scope: Scope,
 ): Promise<Started> {
   if (!scope.dirs.length) {
@@ -115,15 +123,17 @@ export async function start(
   const text = opts.prompt.trim()
   if (!text) return { ok: false, error: 'A session needs something to be told. Nothing was composed to send it.' }
 
-  /* Fixed program, fixed flags, one variable argv element. See the essay above:
+  /* Fixed program, fixed flags, two variable argv elements. See the essay above:
      this line is the whole of what may vary, and it varies as data rather than
-     as syntax because it is an array element and never a string handed to a
-     shell. */
-  const argv = [PROGRAM, '--bg', text]
+     as syntax because each is an array element and never a string handed to a
+     shell. The name is `--name=…` in one element, so it is always a value. */
+  const name = title(opts.place)
+  const args = ['--bg', ...(name ? [`--name=${name}`] : []), text]
+  const argv = [PROGRAM, ...args]
 
   let child: ChildProcess
   try {
-    child = spawn(PROGRAM, ['--bg', text], { cwd: opts.dir, detached: true, stdio: 'ignore' })
+    child = spawn(PROGRAM, args, { cwd: opts.dir, detached: true, stdio: 'ignore' })
   } catch (e) {
     return { ok: false, error: `${PROGRAM} could not be started: ${e instanceof Error ? e.message : String(e)}` }
   }
@@ -135,5 +145,5 @@ export async function start(
   child.unref()
   if (settled) return { ok: false, error: settled }
 
-  return { ok: true, pid: child.pid, argv, dir: opts.dir, token: runToken(opts.refs) }
+  return { ok: true, pid: child.pid, argv, dir: opts.dir, title: name, token: runToken(opts.refs) }
 }

@@ -27,7 +27,7 @@ const session = {
 const realFetch = globalThis.fetch
 /** What the fake server does next: answer, throw as a stopped one does, or refuse the roster. */
 let server: 'up' | 'down' | 'refusing' = 'up'
-let asked: { url: string; headers: Record<string, string> }[] = []
+let asked: { url: string; headers: Record<string, string>; body?: unknown }[] = []
 /** The directories the fake server may start a session in, and whether it does. */
 let dirs: string[] = []
 let starts = false
@@ -72,8 +72,8 @@ beforeEach(() => {
   starts = false
   sessionStorage.clear()
   resetServerStanding()
-  globalThis.fetch = (async (url: string, init?: { headers?: Record<string, string> }) => {
-    asked.push({ url, headers: init?.headers ?? {} })
+  globalThis.fetch = (async (url: string, init?: { headers?: Record<string, string>; body?: unknown }) => {
+    asked.push({ url, headers: init?.headers ?? {}, body: init?.body })
     if (server === 'down') throw new TypeError('Load failed')
     if (url.startsWith('api/sessions')) {
       if (server === 'refusing') return Response.json({ ok: false, error: 'The roster is read with GET.' }, { status: 405 })
@@ -218,6 +218,29 @@ describe('this page asking its own server', () => {
  * A reload is played as an unmount and a fresh mount: the mailbox gives the new page the last
  * greeting, as a host greets a reloaded frame, and `sessionStorage` is what a reload leaves.
  */
+describe('the name a session is started with (#14)', () => {
+  const part = (id: string, heading: string, refs: string[], picked: boolean) => ({ id, heading, refs, picked })
+
+  test('is shown before the press, and what is posted is where the session is from', async () => {
+    dirs = ['/work/one']
+    starts = true
+    render(<App />)
+    await say('kehikot.hello', {
+      project: 'orch',
+      projectPath: '/work/one',
+      epic: 'session-titles',
+      kehikko: { id: 1, name: 'Main' },
+      parts: [part('titles', 'Titles', ['gh#14'], true), part('roster', 'Roster', ['gh#9'], false)],
+    })
+    await waitFor(() => expect(document.querySelector('[data-title]')?.textContent).toBe('named Main · orch · session-titles · Titles'))
+    await waitFor(() => expect(startItem()?.disabled).toBeNull())
+    await pressStart()
+    await waitFor(() => expect(asked.some((one) => one.url.startsWith('api/start'))).toBe(true))
+    const sent = asked.find((one) => one.url.startsWith('api/start'))
+    expect(JSON.parse(String(sent?.body)).place).toEqual({ kehikko: 'Main', project: 'orch', epic: 'session-titles', parts: ['Titles'] })
+  })
+})
+
 describe('what somebody was in the middle of survives the page reloading under it', () => {
   const here = { project: 'p', projectPath: '/tmp/p', epic: 'a', prompt: 'Do the thing.' }
   const box = async () => (await screen.findByRole('textbox')) as HTMLTextAreaElement

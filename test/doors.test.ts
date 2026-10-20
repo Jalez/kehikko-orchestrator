@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -225,5 +225,54 @@ describe('ranking the roster', () => {
 
   test('no directories means unscoped, which is not the same as an empty roster', () => {
     expect(rank(rows, [])).toHaveLength(4)
+  })
+})
+
+/**
+ * The name a session starts with, through the door and into argv (#14). A stand-in `claude` on the
+ * PATH writes what it was given and exits: no real session is started, and no daemon is reached.
+ */
+describe('starting a session with a name', () => {
+  const bin = mkdtempSync(join(tmpdir(), 'orchestrator-stand-in-'))
+  const work = mkdtempSync(join(tmpdir(), 'orchestrator-work-'))
+  const said = join(work, 'argv.json')
+  writeFileSync(
+    join(bin, 'claude'),
+    `#!/bin/sh\nnode -e 'require("fs").writeFileSync(process.argv[1], JSON.stringify(process.argv.slice(2)))' "${said}" "$@"\n`,
+    { mode: 0o755 },
+  )
+  const scope = readScope({ ORCHESTRATOR_DIRS: work })
+
+  async function startWith(place: unknown): Promise<{ body: Record<string, unknown>; argv: string[] }> {
+    const had = process.env.PATH
+    process.env.PATH = `${bin}:${had ?? ''}`
+    try {
+      rmSync(said, { force: true })
+      const reply = await answer('POST', '/api/start', params(), { dir: work, prompt: 'go', refs: ['gh#14'], place }, TICKET, scope)
+      for (let i = 0; i < 100 && !existsSync(said); i++) await new Promise((r) => setTimeout(r, 20))
+      return { body: reply?.body as Record<string, unknown>, argv: JSON.parse(readFileSync(said, 'utf8')) as string[] }
+    } finally {
+      process.env.PATH = had
+    }
+  }
+
+  test('is given as one --name= element, made by the server from where the session is from', async () => {
+    const { body, argv } = await startWith({ kehikko: 'Main', project: 'orch', epic: 'session-titles', parts: ['Titles'] })
+    expect(body.ok).toBe(true)
+    expect(body.title).toBe('Main · orch · session-titles · Titles')
+    expect(argv).toEqual(['--bg', '--name=Main · orch · session-titles · Titles', 'go'])
+    expect(body.argv).toEqual(['claude', ...argv])
+  })
+
+  test('a place that would be a flag is only ever the value of --name', async () => {
+    const { argv } = await startWith({ project: '--dangerously-skip-permissions', parts: [42, '--x'] })
+    expect(argv[1]).toBe('--name=--dangerously-skip-permissions · --x')
+    expect(argv).toHaveLength(3)
+  })
+
+  test('with no place there is no name, and the argv is what it always was', async () => {
+    const { body, argv } = await startWith(undefined)
+    expect(body.title).toBeNull()
+    expect(argv).toEqual(['--bg', 'go'])
   })
 })
