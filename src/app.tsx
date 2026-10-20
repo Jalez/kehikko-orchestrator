@@ -297,6 +297,7 @@ export function App() {
           <StartPanel
             refs={named}
             prompt={prompt}
+            where={host.context ? { ...host.context, epic, parts: host.parts } : null}
             dirs={list?.dirs ?? []}
             scoped={list?.scoped ?? false}
             project={heldKey}

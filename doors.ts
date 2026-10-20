@@ -7,6 +7,7 @@ import { readScope, withProject, type Scope } from './scope.ts'
 import { runners, type Runner } from './sessions.ts'
 import { lastSaid, opening, stampFor, transcript, type Event } from './transcript.ts'
 import { start } from './start.ts'
+import type { Place } from './compose.ts'
 
 export { MANIFEST }
 export type { Reply }
@@ -195,6 +196,25 @@ export interface Tied extends Runner {
   refs: string[]
 }
 
+/**
+ * Where a session is from, as the page posted it: strings or nothing, and no more parts than an
+ * epic has. Read, not trusted — `title()` makes the name out of it, and that is all it is used for.
+ */
+function placeIn(raw: unknown): Partial<Place> | null {
+  if (typeof raw !== 'object' || raw === null) return null
+  const r = raw as Record<string, unknown>
+  const text = (v: unknown) => (typeof v === 'string' ? v : null)
+  return {
+    kehikko: text(r.kehikko),
+    project: text(r.project),
+    epic: text(r.epic),
+    parts: Array.isArray(r.parts) ? r.parts.filter((p): p is string => typeof p === 'string').slice(0, PARTS) : [],
+  }
+}
+
+/** How many parts a session's name may be made from: an epic has no more. */
+const PARTS = 128
+
 /** How many references a caller may ask each session to be compared with, and how long one may be. */
 const AMONG = 256
 const REF_LENGTH = 200
@@ -312,7 +332,7 @@ export async function answer(
     const dir = typeof body.dir === 'string' ? body.dir : ''
     const prompt = typeof body.prompt === 'string' ? body.prompt : ''
     const refs = Array.isArray(body.refs) ? body.refs.filter((r): r is string => typeof r === 'string') : []
-    const started = await start({ prompt, dir, refs }, scope)
+    const started = await start({ prompt, dir, refs, place: placeIn(body.place) }, scope)
     /* 200 for a refusal that is about the request, because the page renders the
        sentence either way and a 4xx here would be indistinguishable in the
        browser's console from the module being broken. The `ok` field is the

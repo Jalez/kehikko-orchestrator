@@ -20,11 +20,14 @@
  * Salvaged, with its reasoning, from the host's old `src/dispatch.ts`:
  *
  *   A pid is not it: `claude --bg` hands off to a daemon and the process we
- *   spawned is gone within the second, taking the number with it. Nor is the
- *   session's name, which Claude Code derives from the prompt and the labelling
- *   cron rewrites every half hour. The opening prompt, though, is written into
- *   the transcript once and never edited again — so a token put IN that prompt
- *   is a key that outlives everything else about the session.
+ *   spawned is gone within the second, taking the number with it. The opening
+ *   prompt, though, is written into the transcript once and never edited
+ *   again — so a token put IN that prompt is a key that outlives everything
+ *   else about the session.
+ *
+ * Nor is the session's name, though this module now gives it one (`title`
+ * below): a name is the person's to change, with `/rename` or in the job list,
+ * and a key a person can edit away is not a key.
  *
  * `transcript.opening()` is how it is read back, and the roster's filter is the
  * thing that reads it. It goes in on a line of its own rather than buried in
@@ -108,4 +111,84 @@ export function compose(prompt: string | null, refs: readonly Named[]): Composed
   }
   lines.push('', runToken(refs.map((r) => r.ref)))
   return { text: lines.join('\n'), fromHost }
+}
+
+/**
+ * Where in kehikko a session is started from: what the host's context says about it.
+ *
+ * `kehikko` is the canvas's name, `project` the project's name (never its path), `epic` the epic's
+ * slug, and `parts` the headings of the parts of the epic the session is for. Each is what a person
+ * reads on screen, and each may be missing: a host with no canvases, an epic with no parts.
+ */
+export interface Place {
+  kehikko: string | null
+  project: string | null
+  epic: string | null
+  parts: string[]
+}
+
+/** As much of the host's context as `placeOf` reads, spelled so that this file needs no import. */
+export interface PlaceContext {
+  kehikko?: { name: string } | null
+  project?: string | null
+  epic?: string | null
+  parts?: readonly { heading: string; refs: readonly string[]; picked: boolean }[]
+}
+
+/**
+ * Where a session started now would be from.
+ *
+ * The parts are the ones a person picked out; with none picked, the ones that list one of the
+ * references this session is for, which is what "References this session is for" in the prompt
+ * names. With neither, the session is for the epic as a whole and no part is named.
+ */
+export function placeOf(context: PlaceContext | null | undefined, refs: readonly string[]): Place {
+  const parts = context?.parts ?? []
+  const picked = parts.filter((part) => part.picked)
+  const named = picked.length ? picked : parts.filter((part) => part.refs.some((ref) => refs.includes(ref)))
+  return {
+    kehikko: context?.kehikko?.name ?? null,
+    project: context?.project ?? null,
+    epic: context?.epic ?? null,
+    parts: named.map((part) => part.heading),
+  }
+}
+
+/** How long one piece of a title, and the whole of it, may be. A title is read in a list, not a page. */
+const PIECE = 60
+const TITLE = 160
+
+/** One line of plain text: no control characters, no runs of space, and cut where it is too long. */
+function line(text: unknown, most: number): string {
+  if (typeof text !== 'string') return ''
+  const flat = text.replace(/[\u0000-\u001f\u007f-\u009f]+/g, ' ').replace(/\s+/g, ' ').trim()
+  return flat.length > most ? `${flat.slice(0, most - 1).trimEnd()}…` : flat
+}
+
+/**
+ * The name a session is started with: the kehikko, the project, the epic and the parts it is for,
+ * in that order, each that is known, ` · ` between them — `Main · kehikko · session-titles · Titles`.
+ *
+ * ## What is not in it
+ *
+ * No reference, so no MR, PR or issue number; no state; no author. The references are in the
+ * prompt, the state is the colour Claude Code's own list gives a session, and a title that repeated
+ * either would go stale while the session ran. Nothing that is not a place in kehikko.
+ *
+ * ## Given once
+ *
+ * It is the name a session STARTS with (`claude --bg --name=…`, see `start.ts`), and nothing in this
+ * module sets a session's name afterwards. A name a person gives it by hand is theirs, and stays.
+ *
+ * Null when nothing is known — no host, or one that says nothing — and the session is started with
+ * no name, so Claude Code names it from its prompt as it always did. The page shows this before the
+ * press, and the server makes it again from the same place: the same function, so what a person
+ * reads is what the session is called.
+ */
+export function title(place: Partial<Place> | null | undefined): string | null {
+  if (!place) return null
+  const parts = Array.isArray(place.parts) ? place.parts.map((part) => line(part, PIECE)).filter(Boolean) : []
+  const pieces = [line(place.kehikko, PIECE), line(place.project, PIECE), line(place.epic, PIECE), line(parts.join(', '), PIECE)]
+  const text = line(pieces.filter(Boolean).join(' · '), TITLE)
+  return text || null
 }
