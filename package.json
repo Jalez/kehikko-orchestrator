@@ -1,6 +1,6 @@
 {
   "name": "kehikko-orchestrator",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "private": true,
   "type": "module",
   "description": "Starts Claude Code sessions on the references somebody picked, and shows what those sessions are saying. A module: its own page, its own store, its own port; a host may frame it, and then it knows what is selected.",
