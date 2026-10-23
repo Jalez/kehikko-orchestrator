@@ -7,7 +7,7 @@ import { defineConfig, type Plugin } from 'vite'
 
 import { BUILD, MANIFEST, TICKET, answer } from './doors.ts'
 import { ID, PREFERRED_PORT } from './manifest.ts'
-import { readScope } from './scope.ts'
+import { readScope, scopeLines } from './scope.ts'
 
 /**
  * Which directories this process may start a session in: read once, at start.
@@ -31,17 +31,7 @@ function saysScope(): Plugin {
     name: 'orchestrator-scope',
     apply: 'serve',
     configureServer(server) {
-      if (scope.dirs.length) {
-        server.config.logger.info(`orchestrator: may start sessions in ${scope.dirs.join(', ')}`)
-      } else {
-        server.config.logger.warn(
-          'orchestrator: ORCHESTRATOR_DIRS is not set, so nothing can be started. The roster will show every ' +
-            'session on this machine; the start button will say which variable to set.',
-        )
-      }
-      for (const bad of scope.rejected) {
-        server.config.logger.warn(`orchestrator: ignoring ${bad.path} — ${bad.why}`)
-      }
+      for (const [level, line] of scopeLines(scope)) server.config.logger[level](line)
     },
   }
 }

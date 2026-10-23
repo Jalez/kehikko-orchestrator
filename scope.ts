@@ -184,3 +184,22 @@ export async function withProject(
   const former = formerPaths(project, projectIdAt(project))
   return { dirs: [project, ...extra.dirs.filter((d) => d !== project)], rejected: extra.rejected, project, former }
 }
+
+/**
+ * What this module says at startup about where it may start sessions, as `[level, line]` pairs:
+ * one for the dev server's logger (`vite.config.ts`) and the built one (`serve.ts`) alike.
+ */
+export function scopeLines(scope: Scope): ['info' | 'warn', string][] {
+  const lines: ['info' | 'warn', string][] = []
+  if (scope.dirs.length) {
+    lines.push(['info', `orchestrator: may start sessions in ${scope.dirs.join(', ')}`])
+  } else {
+    lines.push([
+      'warn',
+      'orchestrator: ORCHESTRATOR_DIRS is not set, so nothing can be started. The roster will show every ' +
+        'session on this machine; the start button will say which variable to set.',
+    ])
+  }
+  for (const bad of scope.rejected) lines.push(['warn', `orchestrator: ignoring ${bad.path} — ${bad.why}`])
+  return lines
+}
