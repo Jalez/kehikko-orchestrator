@@ -183,7 +183,10 @@ export const MANIFEST: Manifest = manifestSchema.parse({
     'transcript is being read live by the person who started you, so say what you are doing as ' +
     'you do it rather than only at the end.',
   entry: '/app',
-  modes: [{ id: 'orchestrator', label: 'Sessions', scope: 'epic' }],
+  /* What its content belongs to (protocol 2.29.0): one mode per scope, the default first. */
+  modes: [
+    { id: 'orchestrator', label: 'Sessions', scope: 'project', scopeSays: 'the Claude Code sessions in this project’s folder; every session on this computer when no project is open' },
+  ],
   extensions: { emits: [], consumes: [] },
   /*
    * The roster follows the parts of the epic a person picked out. A part lists
