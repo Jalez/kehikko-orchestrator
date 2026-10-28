@@ -1,5 +1,7 @@
 import { execFile } from 'node:child_process'
 
+import { personEnv } from 'kehikot-module-protocol/serve'
+
 /**
  * The Claude Code sessions on this machine.
  *
@@ -155,7 +157,8 @@ export async function sessions(): Promise<Session[]> {
   let rows: Session[] = []
   try {
     const out = await new Promise<string>((done, fail) => {
-      execFile('claude', ['agents', '--json', '--all'], { maxBuffer: 32 * 1024 * 1024 }, (error, stdout) =>
+      /* As the person's: this may be what starts Claude Code's background daemon, which keeps the environment it was given. */
+      execFile('claude', ['agents', '--json', '--all'], { maxBuffer: 32 * 1024 * 1024, env: personEnv() }, (error, stdout) =>
         error ? fail(error) : done(stdout),
       )
     })
