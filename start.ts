@@ -1,5 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 
+import { personEnv } from 'kehikot-module-protocol/serve'
+
 import { runToken, title, type Place } from './compose.ts'
 import { allowed, DIRS_VAR, type Scope } from './scope.ts'
 
@@ -102,6 +104,8 @@ export interface Started {
 export async function start(
   opts: { prompt: string; dir: string; refs: string[]; place?: Partial<Place> | null },
   scope: Scope,
+  /** This process's environment; the session gets it as the person's (`personEnv`). */
+  env: Record<string, string | undefined> = process.env,
 ): Promise<Started> {
   if (!scope.dirs.length) {
     return {
@@ -133,7 +137,9 @@ export async function start(
 
   let child: ChildProcess
   try {
-    child = spawn(PROGRAM, args, { cwd: opts.dir, detached: true, stdio: 'ignore' })
+    /* The person's environment: without the host's own `bun` first on this module's PATH and
+       `BUN_BE_BUN`, which in a session boot the host on every `bun` it calls. */
+    child = spawn(PROGRAM, args, { cwd: opts.dir, detached: true, stdio: 'ignore', env: personEnv(env) })
   } catch (e) {
     return { ok: false, error: `${PROGRAM} could not be started: ${e instanceof Error ? e.message : String(e)}` }
   }
