@@ -7,6 +7,7 @@ import { defineConfig, type Plugin } from 'vite'
 
 import { BUILD, MANIFEST, TICKET, answer } from './doors.ts'
 import { ID, PREFERRED_PORT } from './manifest.ts'
+import { stream } from './live.ts'
 import { readScope, scopeLines } from './scope.ts'
 
 /**
@@ -119,6 +120,7 @@ export default defineConfig({
     doors({
       manifest: MANIFEST,
       answer: (method, path, query, body, ticket) => answer(method, path, query, body, ticket, scope),
+      stream,
       build: BUILD,
       page: { title: 'Orchestrator', ticket: TICKET },
     }),

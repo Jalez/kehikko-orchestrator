@@ -71,8 +71,8 @@ const refuse = (status: number, why: string): Reply => ({ status, body: { ok: fa
  * Openings never change once written, so they are remembered forever.
  *
  * `opening()` reads the head of a transcript file, and the filter below asks
- * for one per session. Without this, a page polling the roster every two
- * seconds would re-read the first 256KB of two hundred files every two seconds
+ * for one per session. Without this, every re-read of the roster (each time
+ * a session's files move, `live.ts`) would re-read the first 256KB of two hundred files every two seconds
  * to answer a question whose answer cannot have moved: the first user message
  * of a conversation is written once.
  *
@@ -307,7 +307,7 @@ export async function answer(
         why: 'No transcript for that session has been written on this machine yet.',
       })
     }
-    /* The poll's cheap path: the page sends back the stamp it last saw, and an
+    /* The re-read's cheap path: the page sends back the stamp it last saw, and an
        unchanged file costs one `stat` instead of reading four megabytes. Not a
        304, because the page is reading JSON rather than caching a document and
        a body saying "nothing moved" is easier to act on than a status. */

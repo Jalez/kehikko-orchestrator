@@ -430,3 +430,47 @@ describe('what somebody was in the middle of survives the page reloading under i
     }
   })
 })
+
+describe('the page is told, never asks on a clock', () => {
+  test('the roster and an open transcript are read as their streams open and on news, with no timer of the page’s own', async () => {
+    const { openOn, tell } = await import('./event-source.ts')
+    const realInterval = globalThis.setInterval
+    let intervals = 0
+    globalThis.setInterval = ((...args: Parameters<typeof setInterval>) => (intervals++, realInterval(...args))) as typeof setInterval
+    const reads = (path: string) => asked.filter((one) => one.url.startsWith(path)).length
+    try {
+      render(<App />)
+      await say('kehikot.hello', { epic: 'a' })
+      await act(async () => {
+        fireEvent.click(screen.getByText('the session'))
+        await new Promise((resolve) => setTimeout(resolve, 30))
+      })
+      /* Counted with no `waitFor` or `findBy` before it, which keep an interval of their own. */
+      expect(intervals).toBe(0)
+      expect(screen.getByText('transcript line')).toBeDefined()
+      /* The page's EventSource is the fake one and fetches nothing, so every `api/sessions` here is a read. */
+      const roster = reads('api/sessions')
+      const thread = reads('api/transcript')
+      expect(thread).toBe(1)
+
+      /* Longer than either old poll (4 s roster, 1.5 s transcript would have read again by now). */
+      await settle(1700)
+      expect(reads('api/transcript')).toBe(thread)
+      expect(reads('api/sessions')).toBe(roster)
+
+      /* The server says the transcript grew, then that the roster moved: one read each. */
+      await act(async () => void tell('api/transcript/events'))
+      await settle(30)
+      expect(reads('api/transcript')).toBe(thread + 1)
+      await act(async () => void tell('api/sessions/events'))
+      await settle(30)
+      expect(reads('api/sessions')).toBe(roster + 1)
+      expect(intervals).toBe(0)
+
+      cleanup()
+      expect(openOn('api/sessions/events').length + openOn('api/transcript/events').length).toBe(0)
+    } finally {
+      globalThis.setInterval = realInterval
+    }
+  })
+})

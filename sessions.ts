@@ -76,7 +76,9 @@ export function claimsToBeBusy(state: string): boolean {
 }
 
 /**
- * Reading the list means STARTING A PROCESS, and the page polls. A short cache
+ * Reading the list means STARTING A PROCESS, and the page re-reads whenever a
+ * session's files move (`live.ts`, which also forgets this cache before telling
+ * it, and says so at most every few seconds). A short cache
  * keeps that honest: shorter than a person notices, long enough that a burst of
  * repaints costs one read.
  *

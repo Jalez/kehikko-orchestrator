@@ -3,6 +3,7 @@ import { run } from 'kehikot-module-protocol/run'
 
 import { BUILD, MANIFEST, TICKET, answer } from './doors.ts'
 import { ID, PREFERRED_PORT } from './manifest.ts'
+import { stream } from './live.ts'
 import { readScope, scopeLines } from './scope.ts'
 
 /**
@@ -25,6 +26,8 @@ await run({
   dir: import.meta.dirname,
   manifest: MANIFEST,
   answer: (method, path, query, body, ticket) => answer(method, path, query, body, ticket, scope),
+  /* The page is told when the roster or the open transcript changed (`live.ts`). */
+  stream,
   build: BUILD,
   ticket: TICKET,
 })

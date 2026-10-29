@@ -9,3 +9,7 @@ import { GlobalRegistrator } from '@happy-dom/global-registrator'
  * as "wrong config".
  */
 GlobalRegistrator.register()
+
+/* The page follows its server over `EventSource`, which happy-dom does not have. See `event-source.ts`. */
+import { FakeEventSource } from './event-source.ts'
+;(globalThis as { EventSource?: unknown }).EventSource = FakeEventSource
