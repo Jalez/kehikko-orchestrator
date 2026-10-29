@@ -84,7 +84,7 @@ export interface Event {
 }
 
 /** Read at call time, not at import, so a test can point it at a fixture first. */
-function root(): string {
+export function root(): string {
   return process.env.CLAUDE_PROJECTS_DIR ?? `${process.env.HOME ?? ''}/.claude/projects`
 }
 
@@ -92,6 +92,15 @@ function root(): string {
 export function useProjectsDir(path: string): void {
   process.env.CLAUDE_PROJECTS_DIR = path
   cache = null
+}
+
+/**
+ * Forget the index when a transcript it does not hold has appeared, so a session started a moment
+ * ago is found on the next read rather than a cache lifetime later. Called by the stream's watcher
+ * (`live.ts`), which sees the file appear.
+ */
+export function noticeTranscript(sessionId: string): void {
+  if (cache && !cache.map.has(sessionId)) cache = null
 }
 
 /** A long session is mostly tool traffic; the tail holds the readable part. */

@@ -1,4 +1,4 @@
-import { ask, type AskServerOptions } from 'kehikot-module-protocol/client'
+import { ask, subscribe, type AskServerOptions } from 'kehikot-module-protocol/client'
 
 import type { Row } from '../../doors.ts'
 import type { Place } from '../../compose.ts'
@@ -104,6 +104,20 @@ export function roster(refs: string[], among: readonly string[] = [], project: s
 
 export function thread(session: string, since: number): Promise<Thread | Refused> {
   return door<Thread>('api/transcript', { query: { session, since } })
+}
+
+/**
+ * Hear when the roster changed: once as the stream opens (and again each time it reopens — after a
+ * drop, or when the page is shown again), then whenever a session's files move. Never on a clock;
+ * closed while the page is hidden. Returns the function that stops it.
+ */
+export function rosterChanges(onChange: () => void): () => void {
+  return subscribe('api/sessions/events', () => onChange(), { probe: true })
+}
+
+/** Hear when one session's transcript grew, the same way. */
+export function threadChanges(session: string, onChange: () => void): () => void {
+  return subscribe('api/transcript/events', () => onChange(), { query: { session }, probe: true })
 }
 
 export function scope(project: string | null = null): Promise<ScopeSaid | Refused> {

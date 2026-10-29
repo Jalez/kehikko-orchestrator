@@ -88,7 +88,7 @@ export function TranscriptView({
   why,
 }: {
   events: Event[]
-  /** How many events at the end are new since the last poll, for the flash. */
+  /** How many events at the end are new since the last read, for the flash. */
   since: number
   /** The server's sentence when there is no transcript, rather than an empty box. */
   why?: string

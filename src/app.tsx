@@ -4,7 +4,7 @@ import { Cover, coverFor, useFocus, useHost, useServerStanding, type CoverState 
 import { projectKey } from 'kehikot-module-protocol'
 
 import type { Named } from '../compose.ts'
-import { failed, roster, thread, type Event, type Roster, type Row } from '@/api/client.ts'
+import { failed, roster, rosterChanges, thread, threadChanges, type Event, type Roster, type Row } from '@/api/client.ts'
 import { StartPanel, type Press } from '@/view/start-panel.tsx'
 import { fallbackShows, headerDrawn, rememberHeaderDrawn } from '@/header-fallback.tsx'
 import { TranscriptView } from '@/view/transcript-view.tsx'
@@ -35,16 +35,12 @@ import { ID } from '../manifest.ts'
  * string is inside something with `min-w-0` on it.
  */
 
-/** How often the roster is re-read. `sessions.ts` caches for 3s, so this is the real rate. */
-const ROSTER_MS = 4000
-/**
- * How often the open transcript is re-read.
- *
- * Faster than the roster, because this is the thing somebody is watching. It
- * costs one `stat` when nothing has moved — the poll sends the modification
- * time it last saw and the server answers `unchanged` without reading the file.
+/*
+ * Neither the roster nor the open transcript is read on a clock. Each is read when this module's
+ * server says its files moved (`rosterChanges`, `threadChanges`; the server watches Claude Code's
+ * folders while a page follows, `live.ts`), once as each stream opens, and again when the page is
+ * shown after being hidden.
  */
-const THREAD_MS = 1500
 
 /**
  * How long this page gives itself to answer a walk: 900ms, this module's own
@@ -104,7 +100,7 @@ export function App() {
    * Read the roster.
    *
    * Keyed on the selection rather than on a tick, so that changing what is
-   * selected re-asks immediately instead of at the next poll — a filter that
+   * selected re-asks immediately instead of at the next news — a filter that
    * takes four seconds to apply reads as a filter that did not work.
    */
   /*
@@ -127,11 +123,9 @@ export function App() {
     })
   }, [selection, among, projectPath])
 
-  useEffect(() => {
-    readRoster()
-    const timer = setInterval(readRoster, ROSTER_MS)
-    return () => clearInterval(timer)
-  }, [readRoster])
+  /* The stream says so once as it opens, so this is also the first read, and a changed selection
+     (a new `readRoster`) opens it again and reads at once. */
+  useEffect(() => rosterChanges(readRoster), [readRoster])
 
   /**
    * Open a session's transcript, or close it, and hold which across a reload
@@ -174,10 +168,9 @@ export function App() {
   /*
    * The open session's transcript, followed.
    *
-   * `stamp` is a ref rather than state on purpose: it is the poll's own
-   * bookkeeping, it changes on every tick, and putting it in state would
-   * re-run this effect — tearing down and rebuilding the interval — once a
-   * second forever.
+   * `stamp` is a ref rather than state on purpose: it is the reads' own
+   * bookkeeping, it changes on every one, and putting it in state would re-run
+   * this effect — closing and reopening the stream — at every line written.
    */
   useEffect(() => {
     if (!open) {
@@ -207,11 +200,11 @@ export function App() {
         })
       })
     }
-    tick()
-    const timer = setInterval(tick, THREAD_MS)
+    /* Read as the stream opens, then each time the session's transcript grows. */
+    const stop = threadChanges(open, tick)
     return () => {
       alive = false
-      clearInterval(timer)
+      stop()
     }
   }, [open])
 

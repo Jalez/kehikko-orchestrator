@@ -27,7 +27,9 @@ words it was started with, which is read from its transcript's opening prompt
 and never edited afterwards.
 
 **Follows a transcript.** Claude Code's own JSONL under `~/.claude/projects`,
-polled, drawn as turns, tool calls and results. Not a terminal: see
+re-read when it grows (the server watches the folder while a page follows it and
+tells the page over a held stream; nothing asks on a clock), drawn as turns, tool
+calls and results. Not a terminal: see
 `transcript.ts` for why there is no pty here.
 
 **Starts a session.** `claude --bg --name=<title> <one prompt>`, in a directory
