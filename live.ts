@@ -35,13 +35,13 @@ export const ROSTER_TOPIC = 'roster'
 export const transcriptTopic = (session: string) => `transcript:${session}`
 
 /**
- * The least time between two pieces of news on one topic. The roster's re-read forks `claude agents`
- * (`sessions.ts`), so a session writing its transcript many times a second is said at most this
- * often — never more than the old four-second poll, and not at all while nothing moves. The open
- * transcript costs a `stat` and a tail read, and is what somebody is watching.
+ * The least time between two pieces of news on one topic: the old poll's own intervals. A session
+ * writing its transcript many times a second is said at most this often, so a busy session costs
+ * the page at most what the poll did (the roster's re-read forks `claude agents`, `sessions.ts`); a
+ * quiet one is said at once, and nothing at all is said while nothing moves.
  */
-export const ROSTER_GAP_MS = 3000
-export const TRANSCRIPT_GAP_MS = 300
+export const ROSTER_GAP_MS = 4000
+export const TRANSCRIPT_GAP_MS = 1500
 /* A write, then the next line of the same turn, is one piece of news. */
 const SETTLE_MS = 50
 

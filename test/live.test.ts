@@ -21,7 +21,7 @@ const folder = join(projects, '-some-project')
 const session = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
 const line = (text: string) => `${JSON.stringify({ type: 'assistant', timestamp: '2026-10-29T09:00:00Z', message: { content: [{ type: 'text', text }] } })}\n`
 
-/* Long enough for a watcher's event and the settle; the transcript's gap is 300 ms. */
+/* Long enough for a watcher's event and the settle. */
 const settle = (ms = 200) => new Promise((resolve) => setTimeout(resolve, ms))
 
 /*
@@ -103,7 +103,7 @@ describe('the roster stream', () => {
     expect(page.heard.length).toBe(base + 1)
     appendFileSync(join(folder, `${session}.jsonl`), line('more'))
     await settle()
-    /* Inside the three-second gap: not yet. */
+    /* Inside the roster's gap: not yet. */
     expect(page.heard.length).toBe(base + 1)
     page.close()
   })
@@ -123,8 +123,8 @@ describe('the transcript stream', () => {
     expect(page.heard.length).toBe(base + 1)
     expect(other.heard).toEqual([NEWS])
 
-    /* The next line, after the transcript's short gap, is news again. */
-    await settle(300)
+    /* The next line, after the transcript's gap, is news again. */
+    await settle(1500)
     appendFileSync(join(folder, `${session}.jsonl`), line('another'))
     await settle(400)
     expect(page.heard.length).toBe(base + 2)
