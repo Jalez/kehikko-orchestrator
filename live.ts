@@ -43,7 +43,7 @@ export const transcriptTopic = (session: string) => `transcript:${session}`
 export const ROSTER_GAP_MS = 4000
 export const TRANSCRIPT_GAP_MS = 1500
 /* A write, then the next line of the same turn, is one piece of news. */
-const SETTLE_MS = 50
+const SETTLE_MS = 100
 
 /** Where Claude Code keeps one file per running session. Read at call time, so a test can move it. */
 export function sessionsDir(): string {
