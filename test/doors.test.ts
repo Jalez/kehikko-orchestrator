@@ -1,278 +1,77 @@
-import { describe, expect, test } from 'bun:test'
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { PERSON_MESSAGES_SETTING, SETTINGS_PATH } from 'kehikot-module-protocol'
 
 import { TICKET, answer } from '../doors.ts'
-import { readScope } from '../scope.ts'
-import { useProjectsDir } from '../transcript.ts'
-import { rank, under } from '../sessions.ts'
+import { ID, MANIFEST } from '../manifest.ts'
+import { INTRODUCED_MOST, noteIntroduced, readIntroduced, readSettings, storeDir } from '../store.ts'
 
 /**
- * The routing, asserted without binding a port.
- *
- * `doors.ts` holds the deciding and `vite.config.ts` holds the socket, which is
- * the split that makes this file possible. A test that had to start a server to
- * check that a POST without a ticket is refused would be a test nobody runs.
+ * This module's own doors: health, the person's setting, and the record of whom it introduced
+ * itself to — kept in its machine folder, written only with the page's ticket.
  */
 
-const params = (q = '') => new URLSearchParams(q)
-const empty = readScope({})
+let dir: string
+beforeEach(() => {
+  dir = mkdtempSync(join(tmpdir(), 'orchestrator-'))
+})
+afterEach(() => rmSync(dir, { recursive: true, force: true }))
 
-/**
- * A transcript fixture, written before anything else in this file runs.
- *
- * At the top level rather than inside the `describe` that uses it, and the
- * difference is not style. `transcript.ts` caches its directory index, and the
- * default root is the machine's own `~/.claude/projects` — so anything that
- * reads the index before `useProjectsDir` has been called caches HUNDREDS of
- * the developer's real sessions, holds them for four seconds, and this suite
- * finishes in under one. The symptom is every transcript assertion failing with
- * an empty list on a machine that has used Claude Code and passing on one that
- * has not, which is the worst kind of test to debug.
- *
- * A fixture rather than the machine's own transcripts, for the same reason: this
- * suite has to pass where Claude Code has never run.
- */
-const projects = mkdtempSync(join(tmpdir(), 'orchestrator-projects-'))
-const sessionId = '11111111-2222-3333-4444-555555555555'
-{
-  const folder = join(projects, '-some-project')
-  mkdirSync(folder)
-  writeFileSync(
-    join(folder, `${sessionId}.jsonl`),
-    [
-      JSON.stringify({ type: 'user', timestamp: '2026-08-28T09:00:00Z', message: { content: 'look at gh#131' } }),
-      JSON.stringify({
-        type: 'assistant',
-        timestamp: '2026-08-28T09:00:01Z',
-        message: {
-          content: [
-            { type: 'text', text: 'Reading it now.' },
-            /* `id` on the call and `tool_use_id` on the result: the two ends of
-               one correlation, spelled differently, exactly as Claude Code
-               writes them. This fixture said `tool_use_id` on both once, which
-               made a broken correlation pass. Copied from a real transcript
-               rather than from memory, which is how it was found. */
-            { type: 'tool_use', id: 'tu_1', name: 'Read', input: { file_path: '/tmp/a.ts' } },
-          ],
-        },
-      }),
-      JSON.stringify({
-        type: 'user',
-        timestamp: '2026-08-28T09:00:02Z',
-        message: { content: [{ type: 'tool_result', tool_use_id: 'tu_1', content: 'export const a = 1' }] },
-      }),
-      /* Skipped: a sidechain is a subagent's conversation and not this one's. */
-      JSON.stringify({ type: 'assistant', isSidechain: true, message: { content: [{ type: 'text', text: 'nope' }] } }),
-      '',
-    ].join('\n'),
-  )
-  useProjectsDir(projects)
-}
+const call = (method: string, path: string, query: Record<string, string> = {}, body: Record<string, unknown> | null = null, ticket: string | null = null) =>
+  answer(method, path, new URLSearchParams(query), body, ticket, dir)
 
-describe('the health door', () => {
-  test('says who is answering', async () => {
-    const reply = await answer('GET', '/healthz', params(), null, null, empty)
-    expect(reply?.status).toBe(200)
-    expect((reply?.body as { id: string }).id).toBe('kehikot.orchestrator')
+describe('the manifest', () => {
+  test('asks for the messages, the person’s messages and the Inbox, and nothing it no longer does', () => {
+    expect(MANIFEST.id).toBe(ID)
+    expect(MANIFEST.declares.uses).toEqual(['agents:message', 'messages:as-person', 'activity:report'])
+    expect(MANIFEST.declares.prompt).toBe(false)
+    expect(MANIFEST.declares.settings?.map((one) => one.key)).toEqual([PERSON_MESSAGES_SETTING.key])
+    expect(MANIFEST.declares.settings?.[0]).toMatchObject({ personOnly: true, default: false, scope: 'machine' })
+    expect(MANIFEST.mcp).toBeUndefined()
   })
 })
 
-describe('paths this module does not own', () => {
-  test('are null, so Vite goes on serving the page', async () => {
-    expect(await answer('GET', '/src/main.tsx', params(), null, null, empty)).toBeNull()
-    expect(await answer('GET', '/favicon.ico', params(), null, null, empty)).toBeNull()
+describe('the doors', () => {
+  test('health', async () => {
+    expect((await call('GET', '/healthz'))?.body).toMatchObject({ ok: true, id: ID })
+  })
+  test('the setting: off until the person turns it on', async () => {
+    expect((await call('GET', SETTINGS_PATH))?.body).toMatchObject({ ok: true, values: { sendAsPerson: false } })
+    const refused = await call('POST', SETTINGS_PATH, {}, { key: 'sendAsPerson', value: true, by: 'agent' })
+    expect(refused?.body).toMatchObject({ outcome: 'refused' })
+    expect(readSettings(dir).sendAsPerson).toBe(false)
+    const saved = await call('POST', SETTINGS_PATH, {}, { key: 'sendAsPerson', value: true }, TICKET)
+    expect(saved?.body).toMatchObject({ outcome: 'saved' })
+    expect(readSettings(dir).sendAsPerson).toBe(true)
+  })
+  test('/api/introduced: read freely, written only with the ticket', async () => {
+    expect((await call('GET', '/api/introduced', { project: 'p1' }))?.body).toEqual({ ok: true, sessions: {}, places: {} })
+    const refused = await call('POST', '/api/introduced', {}, { project: 'p1', sessions: ['kehikot.claude\u0000s1'] })
+    expect(refused?.status).toBe(403)
+    const written = await call('POST', '/api/introduced', {}, { project: 'p1', sessions: ['kehikot.claude\u0000s1', 'bad key'], places: ['writing', 'Not A Key'] }, TICKET)
+    expect(written?.status).toBe(200)
+    const read = (await call('GET', '/api/introduced', { project: 'p1' }))?.body as { sessions: Record<string, number>; places: Record<string, number> }
+    expect(Object.keys(read.sessions)).toEqual(['kehikot.claude\u0000s1'])
+    expect(Object.keys(read.places)).toEqual(['writing'])
+    expect((await call('POST', '/api/introduced', {}, { project: '../etc' }, TICKET))?.status).toBe(400)
   })
 })
 
-/**
- * The endpoint that starts a process. Every one of these is a way somebody
- * could otherwise get one started.
- */
-describe('POST /api/start', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'orchestrator-start-'))
-  const scope = readScope({ ORCHESTRATOR_DIRS: dir })
-
-  test('is refused without the write ticket, before the body is even read', async () => {
-    const reply = await answer('POST', '/api/start', params(), { dir, prompt: 'hello', refs: [] }, null, scope)
-    expect(reply?.status).toBe(403)
-    expect((reply?.body as { error: string }).error).toContain('write ticket')
-    /* Marked, so the page's own `ask()` knows it is older than this server and reloads itself. */
-    expect((reply?.body as { refused: string }).refused).toBe('ticket')
+describe('the store', () => {
+  test('in the machine folder, never a project', () => {
+    expect(storeDir({}, 'darwin')).toContain(join('Library', 'Application Support', 'Kehikot', 'orchestrator'))
+    expect(storeDir({ KEHIKOT_ORCHESTRATOR_DIR: '/tmp/x' }, 'darwin')).toBe('/tmp/x')
   })
-
-  test('is refused with the wrong ticket', async () => {
-    const reply = await answer('POST', '/api/start', params(), { dir, prompt: 'x', refs: [] }, 'not-the-ticket', scope)
-    expect(reply?.status).toBe(403)
-  })
-
-  test('is refused on GET', async () => {
-    expect((await answer('GET', '/api/start', params(), null, TICKET, scope))?.status).toBe(405)
-  })
-
-  /**
-   * The allow-list, through the door rather than through `scope.ts` directly.
-   * This is the assertion that a request naming its own directory is refused
-   * even when it carries a valid ticket — the ticket is a browser fence and was
-   * never an authorization check, and the directory check is what actually
-   * bounds the damage.
-   */
-  test('refuses a directory that is not on the list, ticket or no ticket', async () => {
-    const reply = await answer(
-      'POST',
-      '/api/start',
-      params(),
-      { dir: '/etc', prompt: 'hello', refs: [] },
-      TICKET,
-      scope,
-    )
-    expect((reply?.body as { ok: boolean }).ok).toBe(false)
-    expect((reply?.body as { error: string }).error).toContain('not one of the directories')
-  })
-
-  test('refuses everything when no directory is configured, and names the variable', async () => {
-    const reply = await answer('POST', '/api/start', params(), { dir, prompt: 'hello', refs: [] }, TICKET, empty)
-    expect((reply?.body as { ok: boolean }).ok).toBe(false)
-    expect((reply?.body as { error: string }).error).toContain('ORCHESTRATOR_DIRS')
-  })
-
-  test('refuses an empty prompt rather than starting a session with nothing to do', async () => {
-    const reply = await answer('POST', '/api/start', params(), { dir, prompt: '  ', refs: [] }, TICKET, scope)
-    expect((reply?.body as { ok: boolean }).ok).toBe(false)
-  })
-
-  test('refuses an unreadable body', async () => {
-    expect((await answer('POST', '/api/start', params(), null, TICKET, scope))?.status).toBe(400)
-  })
-})
-
-describe('GET /api/scope', () => {
-  test('says what it was given and what it threw out', async () => {
-    const reply = await answer('GET', '/api/scope', params(), null, null, readScope({ ORCHESTRATOR_DIRS: '/no/such' }))
-    const body = reply?.body as { dirs: string[]; rejected: { why: string }[] }
-    expect(body.dirs).toEqual([])
-    expect(body.rejected).toHaveLength(1)
-  })
-})
-
-describe('GET /api/transcript', () => {
-  const id = sessionId
-
-  test('needs a session id', async () => {
-    expect((await answer('GET', '/api/transcript', params(), null, null, empty))?.status).toBe(400)
-  })
-
-  test('reads prose, tool calls and tool results, oldest first', async () => {
-    const reply = await answer('GET', '/api/transcript', params(`session=${id}`), null, null, empty)
-    const body = reply?.body as { events: { kind: string; tool: string; text: string; role: string }[] }
-    expect(body.events.map((e) => e.kind)).toEqual(['said', 'said', 'tool', 'result'])
-    expect(body.events[0]?.text).toBe('look at gh#131')
-    expect(body.events[2]?.tool).toBe('Read')
-    expect(body.events[2]?.text).toBe('/tmp/a.ts')
-    /* The result carries the name of the call it answered, which it does not
-       have on the wire — only an id. See the second pass in `walk`. */
-    expect(body.events[3]?.tool).toBe('Read')
-    expect(body.events[3]?.text).toBe('export const a = 1')
-  })
-
-  test('a sidechain is left out', async () => {
-    const reply = await answer('GET', '/api/transcript', params(`session=${id}`), null, null, empty)
-    const body = reply?.body as { events: { text: string }[] }
-    expect(body.events.some((e) => e.text === 'nope')).toBe(false)
-  })
-
-  test('an unchanged file is answered without re-reading it', async () => {
-    const first = await answer('GET', '/api/transcript', params(`session=${id}`), null, null, empty)
-    const at = (first?.body as { touchedAt: number }).touchedAt
-    const again = await answer('GET', '/api/transcript', params(`session=${id}&since=${at}`), null, null, empty)
-    expect((again?.body as { unchanged: boolean }).unchanged).toBe(true)
-    expect((again?.body as { events: unknown[] }).events).toEqual([])
-  })
-
-  test('a session with no transcript is a sentence, not an error', async () => {
-    const reply = await answer('GET', '/api/transcript', params('session=nobody'), null, null, empty)
-    expect(reply?.status).toBe(200)
-    expect((reply?.body as { why: string }).why).toContain('No transcript for that session')
-  })
-})
-
-/**
- * The roster's own arithmetic, which does not need a `claude` on the PATH.
- */
-describe('ranking the roster', () => {
-  const rows = [
-    { id: 'a', sessionId: 'a', name: 'old done', cwd: '/p/thing', kind: 'background', startedAt: 1, state: 'done' },
-    { id: 'b', sessionId: 'b', name: 'busy', cwd: '/p/thing', kind: 'background', startedAt: 2, state: 'working' },
-    { id: 'c', sessionId: 'c', name: 'idle', cwd: '/p/other', kind: 'background', startedAt: 3, state: 'idle' },
-    { id: 'd', sessionId: 'd', name: 'stuck', cwd: '/p/thing', kind: 'background', startedAt: 4, state: 'blocked' },
-  ]
-
-  test('puts what is running first, then what is free, then what is over', () => {
-    expect(rank(rows).map((r) => r.id)).toEqual(['b', 'd', 'c', 'a'])
-  })
-
-  test('blocked is free rather than busy — it is a word about the work', () => {
-    expect(rank(rows).find((r) => r.id === 'd')?.free).toBe(true)
-  })
-
-  test('scoping is on the path boundary, so a neighbouring checkout is not swallowed', () => {
-    expect(under('/p/thing-notes/x', '/p/thing')).toBe(false)
-    expect(under('/p/thing/x', '/p/thing')).toBe(true)
-    expect(under('/p/thing', '/p/thing/')).toBe(true)
-    expect(rank(rows, ['/p/thing']).map((r) => r.id)).toEqual(['b', 'd', 'a'])
-  })
-
-  test('no directories means unscoped, which is not the same as an empty roster', () => {
-    expect(rank(rows, [])).toHaveLength(4)
-  })
-})
-
-/**
- * The name a session starts with, through the door and into argv (#14). A stand-in `claude` on the
- * PATH writes what it was given and exits: no real session is started, and no daemon is reached.
- */
-describe('starting a session with a name', () => {
-  const bin = mkdtempSync(join(tmpdir(), 'orchestrator-stand-in-'))
-  const work = mkdtempSync(join(tmpdir(), 'orchestrator-work-'))
-  const said = join(work, 'argv.json')
-  writeFileSync(
-    join(bin, 'claude'),
-    `#!/bin/sh\nnode -e 'require("fs").writeFileSync(process.argv[1], JSON.stringify(process.argv.slice(2)))' "${said}" "$@"\n`,
-    { mode: 0o755 },
-  )
-  const scope = readScope({ ORCHESTRATOR_DIRS: work })
-
-  async function startWith(place: unknown): Promise<{ body: Record<string, unknown>; argv: string[] }> {
-    const had = process.env.PATH
-    process.env.PATH = `${bin}:${had ?? ''}`
-    try {
-      rmSync(said, { force: true })
-      const reply = await answer('POST', '/api/start', params(), { dir: work, prompt: 'go', refs: ['gh#14'], place }, TICKET, scope)
-      for (let i = 0; i < 100 && !existsSync(said); i++) await new Promise((r) => setTimeout(r, 20))
-      return { body: reply?.body as Record<string, unknown>, argv: JSON.parse(readFileSync(said, 'utf8')) as string[] }
-    } finally {
-      process.env.PATH = had
-    }
-  }
-
-  test('is given as one --name= element, made by the server from where the session is from', async () => {
-    const { body, argv } = await startWith({ kehikko: 'Main', project: 'orch', epic: 'session-titles', parts: ['Titles'] })
-    expect(body.ok).toBe(true)
-    expect(body.title).toBe('Main · orch · session-titles · Titles')
-    expect(argv).toEqual(['--bg', '--name=Main · orch · session-titles · Titles', 'go'])
-    expect(body.argv).toEqual(['claude', ...argv])
-  })
-
-  test('a place that would be a flag is only ever the value of --name', async () => {
-    const { argv } = await startWith({ project: '--dangerously-skip-permissions', parts: [42, '--x'] })
-    expect(argv[1]).toBe('--name=--dangerously-skip-permissions · --x')
-    expect(argv).toHaveLength(3)
-  })
-
-  test('with no place there is no name, and the argv is what it always was', async () => {
-    const { body, argv } = await startWith(undefined)
-    expect(body.title).toBeNull()
-    expect(argv).toEqual(['--bg', 'go'])
+  test('a session is remembered once, with the first time; projects are kept apart; capped', () => {
+    noteIntroduced(dir, 'p1', { sessions: ['kehikot.claude\u0000s1'] }, 1)
+    noteIntroduced(dir, 'p1', { sessions: ['kehikot.claude\u0000s1'] }, 2)
+    expect(readIntroduced(dir, 'p1').sessions['kehikot.claude\u0000s1']).toBe(1)
+    expect(readIntroduced(dir, 'p2').sessions).toEqual({})
+    const many = Array.from({ length: INTRODUCED_MOST + 5 }, (_, i) => `kehikot.claude\u0000s-${i}`)
+    for (let i = 0; i < many.length; i += 50) noteIntroduced(dir, 'p1', { sessions: many.slice(i, i + 50) }, 10 + i)
+    expect(Object.keys(readIntroduced(dir, 'p1').sessions).length).toBe(INTRODUCED_MOST)
+    expect(JSON.parse(readFileSync(join(dir, 'introduced.json'), 'utf8'))).toHaveProperty('p1')
   })
 })

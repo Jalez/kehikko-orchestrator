@@ -1,9 +1,9 @@
 {
   "name": "kehikko-orchestrator",
-  "version": "1.4.0",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
-  "description": "Starts Claude Code sessions on the references somebody picked, and shows what those sessions are saying. A module: its own page, its own store, its own port; a host may frame it, and then it knows what is selected.",
+  "description": "The person's one place to talk with their agent sessions: answer their questions, message them, see what each is working on. A Kehikot module.",
   "scripts": {
     "dev": "vite",
     "build": "bun run build.ts",
@@ -14,16 +14,13 @@
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.3.3",
-    "@xterm/addon-fit": "^0.11.0",
-    "@xterm/xterm": "^6.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.33.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "kehikot-module-protocol": "git+ssh://git@github.com/Jalez/kehikko-protocol.git#v2.46.0",
+    "kehikot-module-protocol": "git+ssh://git@github.com/Jalez/kehikko-protocol.git#v2.50.0",
     "tailwind-merge": "^3.6.0",
-    "ws": "^8.21.3",
     "zod": "^3.23.8"
   },
   "devDependencies": {

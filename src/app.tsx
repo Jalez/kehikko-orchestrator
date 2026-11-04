@@ -1,387 +1,338 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import { Cover, coverFor, useFocus, useHost, useServerStanding, type CoverState } from 'kehikot-module-protocol/client/react'
-import { projectKey } from 'kehikot-module-protocol'
+import { messageMineResult, messageSendResult, type AgentMessage } from 'kehikot-module-protocol'
+import { ask } from 'kehikot-module-protocol/client'
+import { useHost } from 'kehikot-module-protocol/client/react'
 
-import type { Named } from '../compose.ts'
-import { failed, roster, rosterChanges, thread, threadChanges, type Event, type Roster, type Row } from '@/api/client.ts'
-import { StartPanel, type Press } from '@/view/start-panel.tsx'
-import { fallbackShows, headerDrawn, rememberHeaderDrawn } from '@/header-fallback.tsx'
-import { TranscriptView } from '@/view/transcript-view.tsx'
-import { SessionRow } from '@/view/session-row.tsx'
-import { useKinds } from '@/live/use-kinds.ts'
-import { opened } from '@/store/held.ts'
-import { NOUN, anchorOf, inHand, readFor, refsHeld } from '@/focus.ts'
-import { footerItems } from '@/footer.ts'
 import { ID } from '../manifest.ts'
+import {
+  INTRO,
+  NOT_ALLOWED,
+  activityItems,
+  footerItems,
+  headerItems,
+  keyOf,
+  knowsUs,
+  levelOf,
+  openQuestion,
+  shouldAnnounce,
+  shown,
+  threadsOf,
+  toOf,
+  waiting,
+  working,
+  type Target,
+  type View,
+} from './model.ts'
+import { useBox } from './use-box.ts'
+import { Board, Composer, QuestionCard, ThreadList, ThreadView, type Choose } from './view.tsx'
 
 /**
- * The page.
+ * The page: the person's one place to talk with their agent sessions.
  *
- * ## What is drawn when framed, and what is not
- *
- * Not the module's name, and not its summary. The host shows the manifest's
- * `summary` as a tooltip on the container header, and a page that printed its own
- * title inside the frame would be saying the same sentence twice in a column
- * 240px wide. Unframed — opened in a tab, which is a real way to run this — the
- * heading is drawn, because then nothing else is saying what this is.
- *
- * ## The two panels, and why they stack rather than sit side by side
- *
- * A `@container` query, not a viewport one. The viewport is the host's window,
- * which is large; the frame is a column beside three others, and a `md:` prefix
- * would lay out for a screen nobody is looking at. Below the threshold the
- * roster is a list with the open session's transcript under it; above it, they
- * are two columns. Neither arrangement scrolls the page sideways — every long
- * string is inside something with `min-w-0` on it.
+ * Everything goes through the host (protocol 2.50.0): `messages.mine` to read what sessions sent
+ * here and what was sent from here, `messages.post` for this module's introduction, `messages.say`
+ * for the person's own words — which the host marks as theirs only for a press in this page — and
+ * `activity.set` for a needs-you item per question waiting. The header picks what is shown; the
+ * footer says how many questions wait and how many agents work.
  */
 
-/*
- * Neither the roster nor the open transcript is read on a clock. Each is read when this module's
- * server says its files moved (`rosterChanges`, `threadChanges`; the server watches Claude Code's
- * folders while a page follows, `live.ts`), once as each stream opens, and again when the page is
- * shown after being hidden.
- */
+/** How often the page reads new messages while it is on screen. The host offers a module no push for them. */
+export const READ_EVERY_MS = 4000
 
-/**
- * How long this page gives itself to answer a walk: 900ms, this module's own
- * number, not the client's 500. The host gives a walk 1200ms and then treats
- * silence as "not found", and 900 leaves this page room for a loopback fetch of
- * its own roster while still beating that clock with a sentence a person can read.
- */
-const GOTO_BACKSTOP_MS = 900
+/** What the page needs from the host: the protocol's `useHost`, narrowed, so a test can stand in. */
+export interface Bridge {
+  request(method: string, params?: Record<string, unknown>): Promise<unknown>
+  header(items: unknown[]): void
+  footer(items: unknown[]): void
+  activity(items: unknown[]): void
+  projectId: string | null
+  epic: string | null
+  kehikko: string | null
+  visible: boolean
+}
 
-export function App() {
-  /* A greeting is a new conversation with the host, and `live.get` is asked again for it. */
-  const [greetings, setGreetings] = useState(0)
-  const presses = useRef<Press | null>(null)
-  /* Whether a host has ever pressed a header item: with an older host (no `drawsHeader`) that is the only sign it draws the header. */
-  const [drawn, setDrawn] = useState(headerDrawn)
-  const host = useHost(
-    ID,
-    {
-      onHello: () => setGreetings((n) => n + 1),
-      onPress: (press) => {
-        rememberHeaderDrawn()
-        setDrawn(true)
-        return presses.current ? presses.current(press) : 'There is nothing to start from yet.'
-      },
-      /* Nothing on this page is a reference, so there is nothing to walk to.
-         Answered rather than left to the host's timeout — a hundred
-         milliseconds of a container doing nothing is worse than a sentence. */
-      onGoto: (_message, answerBack) =>
-        answerBack(false, 'This container lists sessions rather than references, so there is nothing here to walk to.'),
-    },
-    { gotoBackstop: GOTO_BACKSTOP_MS },
-  )
-  /* How this page's own server last answered: `down` when nothing did, `stale` when it has restarted under this page. */
-  const server = useServerStanding()
-  const { epic, selection, projectPath } = host
-  /* What this page's browser storage is kept under: the host's project id, which a rename does not
-     change, and only without one (an older host) the path. */
-  const heldKey = projectKey(host)?.key ?? null
-  /*
-   * The prompt the host composed for this container, and whether it has pinned
-   * it. This module declares `prompt: true` and must work when there is none,
-   * so null is an ordinary state with the fallback text shown in its place.
-   */
-  const prompt = host.context?.prompt ?? null
-  const pinned = host.context?.pinned ?? false
-  const kinds = useKinds(epic, greetings, host.request)
-  const [list, setList] = useState<Roster | null>(null)
-  const [listWhy, setListWhy] = useState<string | null>(null)
+/** Where this module remembers whom it introduced itself to (its own server, `/api/introduced`). */
+export interface IntroStore {
+  read(project: string): Promise<{ sessions: Record<string, number>; places: Record<string, number> }>
+  note(project: string, add: { sessions?: string[]; places?: string[] }): Promise<void>
+}
+
+export const serverIntroStore: IntroStore = {
+  async read(project) {
+    const asked = await ask<{ sessions?: Record<string, number>; places?: Record<string, number> }>('/api/introduced', { query: { project } })
+    return asked.ok ? { sessions: asked.body.sessions ?? {}, places: asked.body.places ?? {} } : { sessions: {}, places: {} }
+  },
+  async note(project, add) {
+    await ask('/api/introduced', { body: { project, ...add } })
+  },
+}
+
+const refusedWords = (error: unknown): string => (error instanceof Error ? error.message : String(error))
+
+export function Orchestrator({ bridge, store = serverIntroStore, view, now: clock = Date.now }: { bridge: Bridge; store?: IntroStore; view: View; now?: () => number }) {
+  const [messages, setMessages] = useState<AgentMessage[]>([])
   const [open, setOpen] = useState<string | null>(null)
-  const [events, setEvents] = useState<Event[]>([])
-  const [threadWhy, setThreadWhy] = useState<string | undefined>(undefined)
-  const [fresh, setFresh] = useState(0)
-  const stamp = useRef(0)
+  const [targetIndex, setTargetIndex] = useState(0)
+  const [busy, setBusy] = useState(false)
+  const [said, setSaid] = useState<string | null>(null)
+  const [trouble, setTrouble] = useState<string | null>(null)
+  const [now, setNow] = useState(() => clock())
+  const introduced = useRef<Set<string>>(new Set())
+  const last = useRef(0)
+  const project = bridge.projectId
+  const rootRef = useRef<HTMLDivElement | null>(null)
+  const box = useBox(rootRef)
+  const level = levelOf(box)
 
+  /* ---- reading ---- */
 
-  /**
-   * Read the roster.
-   *
-   * Keyed on the selection rather than on a tick, so that changing what is
-   * selected re-asks immediately instead of at the next news — a filter that
-   * takes four seconds to apply reads as a filter that did not work.
-   */
-  /*
-   * The parts of the epic a person picked out. A session is tied to a part by the references it
-   * names, so while parts are picked the roster is asked which of the epic's references each
-   * session names — all of them, picked or not: what is picked is the rule's question, and the
-   * server is never told. See `focus.ts`.
-   */
-  const focus = useFocus({ parts: host.parts, epic, projectPath })
-  const among = useMemo(() => (focus.focused ? refsHeld(focus.parts) : []), [focus])
-
-  const readRoster = useCallback(() => {
-    void roster([...selection], among, projectPath).then((answer) => {
-      if (failed(answer)) {
-        setListWhy(answer.why)
-        return
+  const read = useCallback(async () => {
+    try {
+      const fresh: AgentMessage[] = []
+      let since: number | undefined = last.current || undefined
+      for (let round = 0; round < 20; round++) {
+        const got = messageMineResult.parse(await bridge.request('messages.mine', since === undefined ? {} : { since }))
+        fresh.push(...got.messages)
+        const newest = got.messages.at(-1)?.id
+        if (newest !== undefined) since = newest
+        if (!got.more || newest === undefined) break
       }
-      setListWhy(null)
-      setList(answer)
-    })
-  }, [selection, among, projectPath])
-
-  /* The stream says so once as it opens, so this is also the first read, and a changed selection
-     (a new `readRoster`) opens it again and reads at once. */
-  useEffect(() => rosterChanges(readRoster), [readRoster])
-
-  /**
-   * Open a session's transcript, or close it, and hold which across a reload
-   * of this page — with the epic it was opened under. See `store/held.ts`.
-   */
-  const choose = useCallback(
-    (session: string | null) => {
-      setOpen(session)
-      opened.at(heldKey).keep(epic ?? '', session ? { session } : null)
-    },
-    [heldKey, epic],
-  )
-
-  /*
-   * A session opened by hand stays open only until the canvas changes epic.
-   * The epic switch clears the host's selection, so the roster widens to every
-   * session and would still contain this one, with a transcript that belongs to
-   * the references the reader has just left.
-   *
-   * The first time this page knows where it stands — greeted, or sure nobody
-   * will — is not a change of epic: it is a fresh page, and the session that was
-   * open under this same epic before the reload is opened again.
-   */
-  const settled = host.where !== 'listening'
-  const stood = useRef(false)
-  useEffect(() => {
-    if (!settled) return
-    if (!stood.current) {
-      stood.current = true
-      setOpen(opened.at(heldKey).read(epic ?? '')?.session ?? null)
-      return
-    }
-    setOpen(null)
-    /* Whatever was open under the epic just left is forgotten with it. */
-    const here = opened.at(heldKey)
-    for (const was of Object.keys(here.all())) here.keep(was, null)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- the epic moving is the whole trigger
-  }, [epic, settled])
-
-  /*
-   * The open session's transcript, followed.
-   *
-   * `stamp` is a ref rather than state on purpose: it is the reads' own
-   * bookkeeping, it changes on every one, and putting it in state would re-run
-   * this effect — closing and reopening the stream — at every line written.
-   */
-  useEffect(() => {
-    if (!open) {
-      setEvents([])
-      setThreadWhy(undefined)
-      return
-    }
-    stamp.current = 0
-    setEvents([])
-    let alive = true
-    const tick = () => {
-      void thread(open, stamp.current).then((answer) => {
-        if (!alive) return
-        if (failed(answer)) {
-          setThreadWhy(answer.why)
-          return
-        }
-        setThreadWhy(answer.why)
-        if (answer.unchanged) return
-        stamp.current = answer.touchedAt
-        setEvents((was) => {
-          /* How many of the new list the reader has not seen, for the flash in
-             the view. Computed here rather than there because the view is given
-             a list and has no memory of the previous one. */
-          setFresh(Math.max(0, answer.events.length - was.length))
-          return answer.events
+      if (fresh.length) {
+        last.current = Math.max(last.current, ...fresh.map((one) => one.id))
+        setMessages((was) => {
+          const byId = new Map(was.map((one) => [one.id, one]))
+          for (const one of fresh) byId.set(one.id, one)
+          return [...byId.values()].sort((a, b) => a.id - b.id)
         })
-      })
+      }
+      setTrouble(null)
+    } catch (error) {
+      setTrouble(`Could not read messages: ${refusedWords(error)}`)
     }
-    /* Read as the stream opens, then each time the session's transcript grows. */
-    const stop = threadChanges(open, tick)
-    return () => {
-      alive = false
-      stop()
-    }
-  }, [open])
+    setNow(clock())
+  }, [bridge, clock])
 
-  /**
-   * The selection, with what `live.get` said each reference is.
-   *
-   * A ref with no entry keeps an empty kind rather than being dropped. The
-   * selection is the person's, and a reference this module could not identify
-   * is still a reference they picked — leaving it out of the prompt because a
-   * host did not answer would be this module quietly editing what somebody
-   * asked for.
-   */
-  const named: Named[] = useMemo(
-    () =>
-      selection.map((ref) => ({
-        ref,
-        kind: kinds[ref]?.kind ?? '',
-        title: kinds[ref]?.title ?? '',
-      })),
-    [selection, kinds],
+  useEffect(() => {
+    last.current = 0
+    setMessages([])
+    void read()
+  }, [project, read])
+
+  useEffect(() => {
+    if (!bridge.visible) return
+    const timer = setInterval(() => void read(), READ_EVERY_MS)
+    return () => clearInterval(timer)
+  }, [bridge.visible, read])
+
+  /* ---- the introduction: announced at this kehikko; the host hands each session at most one, ever ---- */
+
+  useEffect(() => {
+    if (!project) return
+    let gone = false
+    void (async () => {
+      const known = await store.read(project).catch(() => ({ sessions: {}, places: {} }))
+      if (gone) return
+      for (const key of Object.keys(known.sessions)) introduced.current.add(key)
+      if (!shouldAnnounce(known.places, bridge.kehikko, clock())) return
+      try {
+        const sent = messageSendResult.parse(await bridge.request('messages.post', { to: { place: { kehikko: bridge.kehikko } }, once: true, body: INTRO }))
+        if (sent.outcome === 'sent') await store.note(project, { places: [bridge.kehikko!] })
+      } catch {
+        /* A host before 2.50.0, or none: the agentSays line still tells every session. */
+      }
+    })()
+    return () => {
+      gone = true
+    }
+  }, [project, bridge, store, clock])
+
+  /* Sessions that wrote here already know this module: no introduction for them. */
+  useEffect(() => {
+    if (!project) return
+    const fresh = knowsUs(messages).filter((key) => !introduced.current.has(key))
+    if (!fresh.length) return
+    for (const key of fresh) introduced.current.add(key)
+    void store.note(project, { sessions: fresh }).catch(() => {})
+  }, [messages, project, store])
+
+  /* ---- what is decided ---- */
+
+  const threads = useMemo(() => threadsOf(messages, now), [messages, now])
+  const visibleThreads = useMemo(() => shown(threads, view), [threads, view])
+  const openThread = threads.find((one) => one.key === open) ?? null
+
+  const targets = useMemo<Target[]>(() => {
+    const out: Target[] = []
+    if (openThread?.ref) out.push({ kind: 'session', ref: openThread.ref })
+    for (const thread of threads) if (thread.ref && thread !== openThread) out.push({ kind: 'session', ref: thread.ref })
+    if (bridge.kehikko) out.push({ kind: 'kehikko', key: bridge.kehikko })
+    if (bridge.epic) out.push({ kind: 'epic', epic: bridge.epic })
+    out.push({ kind: 'everyone' })
+    return out
+  }, [threads, openThread, bridge.kehikko, bridge.epic])
+
+  useEffect(() => setTargetIndex(0), [open])
+
+  useEffect(() => bridge.header(headerItems(view)), [bridge, view])
+  useEffect(() => bridge.footer(footerItems(threads, trouble)), [bridge, threads, trouble])
+  useEffect(() => bridge.activity(activityItems(threads)), [bridge, threads])
+
+  /* ---- sending, as the person ---- */
+
+  const sayAsPerson = useCallback(
+    async (target: Target, body: string, answering: AgentMessage | null) => {
+      setBusy(true)
+      setSaid(null)
+      try {
+        /* The first word to a session: the introduction, before the person's message (once, ever). */
+        if (target.kind === 'session' && project && !introduced.current.has(keyOf(target.ref))) {
+          const key = keyOf(target.ref)
+          const intro = messageSendResult.safeParse(await bridge.request('messages.post', { to: toOf(target), once: true, body: INTRO }).catch(() => null))
+          if (intro.success && intro.data.outcome === 'sent') {
+            introduced.current.add(key)
+            void store.note(project, { sessions: [key] }).catch(() => {})
+          }
+        }
+        const params: Record<string, unknown> = { to: toOf(target), body }
+        if (answering) {
+          params.replyTo = answering.id
+          if (answering.thread) params.thread = answering.thread
+        }
+        const sent = messageSendResult.parse(await bridge.request('messages.say', params))
+        if (sent.outcome === 'sent') setSaid('Sent.')
+        else setSaid(/allowed/.test(sent.why) ? NOT_ALLOWED : `Not sent: ${sent.why}`)
+      } catch (error) {
+        setSaid(`Not sent: ${refusedWords(error)}`)
+      } finally {
+        setBusy(false)
+        void read()
+      }
+    },
+    [bridge, project, store, read],
   )
 
-  const every: Row[] = list?.sessions ?? []
-  const openRow = every.find((r) => r.sessionId === open) ?? null
-  /* Until the roster read for these references has answered, what each session names is not known,
-     and nothing is taken away on a guess: every row is kept as it was. */
-  const compared = readFor(list?.among, among)
-  const { shown: rows, empty: noneInFocus } = focus.narrow(every, anchorOf, {
-    noun: NOUN,
-    keep: (row) => !compared || inHand(row, open, selection),
-  })
+  const choose: Choose = useCallback(
+    (question, thread, choice) => {
+      if (!thread.ref) return
+      void sayAsPerson({ kind: 'session', ref: thread.ref }, choice, question)
+    },
+    [sayAsPerson],
+  )
 
-  /*
-   * Every not-ready moment is the protocol's one cover. This page needs no project and no epic —
-   * unframed it still reads the roster — so the host's side of it is only `waiting`; the rest is
-   * this page's own server: restarted under it (the page reloads), not answering, or not read yet.
-   * A roster already on screen is not replaced by `loading`, and a refusal is said in the legend.
-   */
-  const cover: CoverState | null = coverFor({ ...host, server }, {}) ?? (!list && !listWhy ? 'loading' : null)
+  const index = Math.min(targetIndex, targets.length - 1)
+  const target = targets[index]!
+  const answering = target.kind === 'session' && openThread?.ref && keyOf(target.ref) === openThread.key ? openQuestion(openThread) : null
+  const composer = (
+    <Composer
+      targets={targets}
+      target={index}
+      onTarget={setTargetIndex}
+      threads={threads}
+      answering={answering}
+      busy={busy}
+      send={(body) => void sayAsPerson(target, body, answering)}
+      said={said}
+    />
+  )
+  const asks = waiting(threads)
 
-  /*
-   * The footer the host draws, when it draws one (2.38.0): how many sessions of how many, how many
-   * work, the one open, not scoped and held. The page then draws no legend above the roster. An
-   * older host draws no footer, and the legend stays.
-   */
-  const footed = host.where === 'hosted' && host.drawsFooter === true
-  const footerSaid = footed ? JSON.stringify(cover ? [] : footerItems({ list, rows, open: openRow, why: listWhy, pinned, epic })) : null
-  const { footer } = host
-  useEffect(() => {
-    if (footerSaid) footer(JSON.parse(footerSaid))
-  }, [footer, footerSaid])
+  /* ---- drawing, by how much fits ---- */
+
+  if (level === 'glance') {
+    const first = asks[0]
+    return (
+      <div ref={rootRef} className="bg-background text-foreground h-full overflow-auto p-2" data-level="glance">
+        {first ? (
+          <QuestionCard thread={first.thread} question={first.question} choose={choose} busy={busy} now={now} />
+        ) : (
+          <p className="text-muted-foreground text-sm">No questions waiting. {working(threads).length} working.</p>
+        )}
+      </div>
+    )
+  }
+
+  const list = (
+    <>
+      {asks.length && !openThread ? (
+        <section aria-label="Questions waiting" className="flex flex-col gap-2 p-2">
+          {asks.slice(0, 3).map(({ thread, question }) => (
+            <QuestionCard key={question.id} thread={thread} question={question} choose={choose} busy={busy} now={now} onOpen={() => setOpen(thread.key)} />
+          ))}
+        </section>
+      ) : null}
+      <ThreadList threads={visibleThreads} open={open} onOpen={setOpen} now={now} />
+    </>
+  )
+
+  if (level === 'list') {
+    return (
+      <div ref={rootRef} className="bg-background text-foreground flex h-full min-w-0 flex-col" data-level="list">
+        <div className="min-h-0 flex-1 overflow-auto">
+          {openThread ? (
+            <>
+              <button type="button" className="text-muted-foreground hover:text-foreground px-3 pt-2 text-xs" onClick={() => setOpen(null)}>
+                ← All sessions
+              </button>
+              <ThreadView thread={openThread} choose={choose} busy={busy} now={now} />
+            </>
+          ) : view === 'working' ? (
+            <Board threads={threads} now={now} />
+          ) : (
+            list
+          )}
+        </div>
+        {composer}
+      </div>
+    )
+  }
 
   return (
-    <div className="container flex h-full min-w-0 flex-col text-sm">
-      {/* Unframed only. See the note at the top of this file. */}
-      {host.where === 'unhosted' ? (
-        <header className="min-w-0 border-b px-2 py-1.5">
-          <h1 className="text-xs font-medium">Orchestrator</h1>
-          <p className="text-muted-foreground text-[10px]">
-            Nothing is framing this page, so no selection and no prompt can reach it. The roster below is every session
-            this module can see; a session can still be started, with this module’s own default prompt.
-          </p>
-        </header>
-      ) : null}
-
-      {cover ? <Cover state={cover} name="Orchestrator" onRetry={readRoster} /> : null}
-
-      {/* Kept mounted under a cover, so a prompt somebody has edited survives the server coming back. */}
-      <div className={`${cover ? 'hidden' : 'flex'} min-h-0 min-w-0 flex-1 flex-col @[34rem]:flex-row`}>
-        <div className={`flex min-h-0 min-w-0 flex-col ${openRow ? 'flex-1 @[34rem]:w-1/2 @[34rem]:flex-none @[34rem]:border-r' : 'flex-1'}`}>
-          {footed ? null : <Legend list={list} drawn={rows.length} why={listWhy} pinned={pinned} epic={epic} />}
-          <div className="min-h-0 min-w-0 flex-1 overflow-y-auto">
-            {rows.map((row) => (
-              <SessionRow
-                key={row.sessionId}
-                row={row}
-                open={row.sessionId === open}
-                onOpen={() => choose(row.sessionId === open ? null : row.sessionId)}
-              />
-            ))}
-            {/* The pick left no session. One sentence where the rows were, and nothing else about the pick anywhere. */}
-            {noneInFocus ? (
-              <p className="text-muted-foreground p-2 text-[11px]" data-none-in-focus>
-                {noneInFocus}
-              </p>
-            ) : null}
-            {/* Nothing open: the hint lives here, so no half of the width is reserved for an empty pane. */}
-            {openRow ? null : (
-              <p className="text-muted-foreground p-2 text-[11px]" data-pick-hint>
-                Pick a session to follow what it is doing. What is shown is Claude Code’s own transcript, read from disk
-                as it is written — so a session that never announced itself to anything is still readable here.
-              </p>
-            )}
-          </div>
-          <StartPanel
-            refs={named}
-            prompt={prompt}
-            where={host.context ? { ...host.context, epic, parts: host.parts } : null}
-            dirs={list?.dirs ?? []}
-            scoped={list?.scoped ?? false}
-            project={heldKey}
-            projectPath={projectPath}
-            onStarted={readRoster}
-            header={cover ? undefined : host.header}
-            presses={presses}
-            drawn={!fallbackShows(host.where, host.drawsHeader, drawn)}
-          />
+    <div ref={rootRef} className="bg-background text-foreground grid h-full min-w-0 grid-cols-[minmax(200px,2fr)_3fr]" data-level="full">
+      <aside className="border-border flex min-h-0 min-w-0 flex-col overflow-auto border-r">
+        {list}
+        <Board threads={threads} now={now} />
+      </aside>
+      <main className="flex min-h-0 min-w-0 flex-col">
+        <div className="min-h-0 flex-1 overflow-auto">
+          {openThread ? (
+            <ThreadView thread={openThread} choose={choose} busy={busy} now={now} />
+          ) : (
+            <p className="text-muted-foreground p-3 text-sm">Pick a session to read its conversation, or write to a place or everyone below.</p>
+          )}
         </div>
-
-        {openRow ? (
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col border-t @[34rem]:border-t-0">
-            <header className="min-w-0 border-b px-2 py-1.5">
-              <p className="truncate text-xs font-medium">{openRow.name || openRow.id}</p>
-              <p className="text-muted-foreground truncate text-[10px]" title={openRow.cwd}>
-                {openRow.state} · {openRow.cwd}
-              </p>
-            </header>
-            <TranscriptView events={events} since={fresh} why={threadWhy} />
-          </div>
-        ) : null}
-      </div>
+        {composer}
+      </main>
     </div>
   )
 }
 
-/**
- * The line above the roster, which has to tell four situations apart.
- *
- * This is the part that is easy to get wrong by saying nothing. "No sessions"
- * is four different facts — there are none on the machine, none in the
- * directories this module was given, none matching what is selected, or the
- * match ran out of window — and a person seeing an empty list needs to know
- * which. The one that most needs saying is the third, because the fix is
- * "change the selection" and nothing else on screen suggests the selection is
- * involved.
- */
-function Legend({
-  list,
-  drawn,
-  why,
-  pinned,
-  epic,
-}: {
-  list: Roster | null
-  /** How many rows are drawn. */
-  drawn: number
-  why: string | null
-  pinned: boolean
-  epic: string | null
-}) {
-  if (why) return <p className="text-destructive border-b p-2 text-[11px]">{why}</p>
-  /* Not read yet is the shared `loading` cover, drawn by `App`. */
-  if (!list) return null
-
-  const parts: string[] = []
-  parts.push(`${drawn} of ${list.total}`)
-  if (list.refs.length) parts.push(`matching ${list.refs.join(', ')}`)
-  parts.push(list.scoped ? `in ${list.dirs.length} director${list.dirs.length === 1 ? 'y' : 'ies'}` : 'on this machine')
-
-  return (
-    <div className="text-muted-foreground min-w-0 border-b px-2 py-1 text-[10px]">
-      <p className="break-words">{parts.join(' · ')}</p>
-      {!list.scoped ? (
-        <p className="break-words">
-          ORCHESTRATOR_DIRS is unset, so nothing is filtered by directory and nothing can be started.
-        </p>
-      ) : null}
-      {list.cut ? (
-        <p className="break-words">
-          Only the {list.considered} most recent sessions were compared; older ones are not shown.
-        </p>
-      ) : null}
-      {/* Pinning is said out loud because the protocol's whole argument for the
-          field is that a module pinned silently cannot tell a person's pin from
-          a canvas that has not moved. */}
-      {pinned ? <p className="break-words">Held: this container keeps {epic ?? 'what it was last told'} until unpinned.</p> : null}
-    </div>
+export function App() {
+  const [view, setView] = useState<View>('all')
+  const host = useHost(ID, {
+    onPress: (press) => {
+      if (press.item !== 'view') return 'This container has no such item.'
+      if (press.value === 'all' || press.value === 'questions' || press.value === 'working') {
+        setView(press.value)
+        return true
+      }
+      return 'Show all sessions, the questions, or what they work on.'
+    },
+    onGoto: (_message, answerBack) => answerBack(false, 'This container holds conversations with agent sessions, not references.'),
+  })
+  const { request, header, footer, activity, projectId, epic, kehikko, visible } = host
+  const bridge = useMemo<Bridge>(
+    () => ({
+      request: (method, params = {}) => request(method, params),
+      header: (items) => header(items as never),
+      footer: (items) => footer(items as never),
+      activity: (items) => activity(items as never),
+      projectId,
+      epic,
+      kehikko: kehikko?.key ?? null,
+      visible,
+    }),
+    [request, header, footer, activity, projectId, epic, kehikko?.key, visible],
   )
+  return <Orchestrator bridge={bridge} view={view} />
 }

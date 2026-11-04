@@ -9,14 +9,14 @@ import { join } from 'node:path'
  *
  * `run.sh` ends in `bunx vite`. `bunx` execs the `vite` bin, whose shebang is
  * `#!/usr/bin/env node`, so the dev server — and therefore every middleware,
- * every roster read, every transcript read — is a node process with no `Bun`
+ * every door — is a node process with no `Bun`
  * global in it.
  *
  * Everything else about this repository is bun: `bun install`, `bun test`, `bun
  * run typecheck`. So a `Bun.spawn` or a `Bun.file` in the server half type-
  * checks, passes every test, and throws at runtime — where it is caught by a
  * `try` that exists for a legitimate reason and turned into an empty answer.
- * That is exactly what happened: `sessions.ts` used `Bun.spawn`, the page said
+ * That is exactly what happened in an earlier version: a `Bun.spawn`, and the page said
  * "0 of 0 sessions on this machine", and `claude agents --json --all` in a
  * terminal listed a hundred and eighteen. Nothing failed. Nothing logged.
  *
@@ -25,7 +25,7 @@ import { join } from 'node:path'
  * check that runs under bun and asserts something about node, so that is what
  * this is. It is crude on purpose: crude and correct beats subtle and absent.
  */
-const SERVER_FILES = ['sessions.ts', 'transcript.ts', 'start.ts', 'scope.ts', 'doors.ts', 'vite.config.ts']
+const SERVER_FILES = ['doors.ts', 'store.ts', 'settings.ts', 'vite.config.ts']
 
 describe('the server half', () => {
   for (const name of SERVER_FILES) {
