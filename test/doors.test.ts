@@ -25,7 +25,7 @@ const call = (method: string, path: string, query: Record<string, string> = {}, 
 describe('the manifest', () => {
   test('asks for the messages, the person’s messages and the Inbox, and nothing it no longer does', () => {
     expect(MANIFEST.id).toBe(ID)
-    expect(MANIFEST.declares.uses).toEqual(['agents:message', 'messages:as-person', 'activity:report'])
+    expect(MANIFEST.declares.uses).toEqual(['agents:message', 'messages:as-person', 'activity:report', 'state:keep'])
     expect(MANIFEST.declares.prompt).toBe(false)
     expect(MANIFEST.declares.settings?.map((one) => one.key)).toEqual([PERSON_MESSAGES_SETTING.key])
     expect(MANIFEST.declares.settings?.[0]).toMatchObject({ personOnly: true, default: false, scope: 'machine' })
