@@ -12,6 +12,7 @@ import { SessionRow } from '@/view/session-row.tsx'
 import { useKinds } from '@/live/use-kinds.ts'
 import { opened } from '@/store/held.ts'
 import { NOUN, anchorOf, inHand, readFor, refsHeld } from '@/focus.ts'
+import { footerItems } from '@/footer.ts'
 import { ID } from '../manifest.ts'
 
 /**
@@ -245,6 +246,18 @@ export function App() {
    */
   const cover: CoverState | null = coverFor({ ...host, server }, {}) ?? (!list && !listWhy ? 'loading' : null)
 
+  /*
+   * The footer the host draws, when it draws one (2.38.0): how many sessions of how many, how many
+   * work, the one open, not scoped and held. The page then draws no legend above the roster. An
+   * older host draws no footer, and the legend stays.
+   */
+  const footed = host.where === 'hosted' && host.drawsFooter === true
+  const footerSaid = footed ? JSON.stringify(cover ? [] : footerItems({ list, rows, open: openRow, why: listWhy, pinned, epic })) : null
+  const { footer } = host
+  useEffect(() => {
+    if (footerSaid) footer(JSON.parse(footerSaid))
+  }, [footer, footerSaid])
+
   return (
     <div className="container flex h-full min-w-0 flex-col text-sm">
       {/* Unframed only. See the note at the top of this file. */}
@@ -263,7 +276,7 @@ export function App() {
       {/* Kept mounted under a cover, so a prompt somebody has edited survives the server coming back. */}
       <div className={`${cover ? 'hidden' : 'flex'} min-h-0 min-w-0 flex-1 flex-col @[34rem]:flex-row`}>
         <div className={`flex min-h-0 min-w-0 flex-col ${openRow ? 'flex-1 @[34rem]:w-1/2 @[34rem]:flex-none @[34rem]:border-r' : 'flex-1'}`}>
-          <Legend list={list} drawn={rows.length} why={listWhy} pinned={pinned} epic={epic} />
+          {footed ? null : <Legend list={list} drawn={rows.length} why={listWhy} pinned={pinned} epic={epic} />}
           <div className="min-h-0 min-w-0 flex-1 overflow-y-auto">
             {rows.map((row) => (
               <SessionRow
