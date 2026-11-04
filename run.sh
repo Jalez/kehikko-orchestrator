@@ -22,11 +22,10 @@
 #     What `--strictPort` bought was a module that DIED on a taken port rather
 #     than one answering quietly somewhere else, and that was the only honest
 #     option while nothing handled a collision. It is a bad trade here in
-#     particular: a host with no roster cannot offer to stop a session this
-#     module started, so dying leaves running agents with nothing on screen
-#     attached to them. `serves()` handles the collision instead — a free 7850 is
+#     particular: a host that cannot reach this module cannot show the
+#     questions agent sessions are waiting on. `serves()` handles the collision instead — a free 7850 is
 #     taken in silence, this module already answering there ends the start
-#     cleanly instead of making a second roster over the same sessions, and
+#     cleanly instead of making a second page over the same messages, and
 #     anything else is a loud move with the registration rewritten to the port
 #     actually bound.
 #   - `exec`, and the foreground. A script that forks and returns leaves whoever
@@ -44,18 +43,6 @@
 # decided to be framed, they did not decide to be framed at 7850 in particular,
 # and a registration still naming a port this module has drifted off is one the
 # host sweeps to find nothing.
-#
-# ## $ORCHESTRATOR_DIRS, and why it is not set here
-#
-# This module starts Claude Code sessions, and the list of directories it may
-# start one in comes from the environment of whoever starts this process. It is
-# deliberately not defaulted in this file: a default here would be this script
-# choosing a repository for somebody else's agent to edit, which is the one
-# decision `scope.ts` refuses to make. Unset means the roster shows every
-# session on the machine and the start button says, in words, which variable to
-# set.
-#
-#     ORCHESTRATOR_DIRS=/Users/you/Projects/thing:/Users/you/Projects/other ./run.sh
 #
 # ## The built page, when it is this checkout's, and Vite otherwise
 #

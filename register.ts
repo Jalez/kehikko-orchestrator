@@ -34,8 +34,8 @@ import { ID, PREFERRED_PORT } from './manifest.ts'
  * be framed, and 7850 is a fact about where this process happened to bind, one
  * that changes between one start and the next when something else has the port.
  * A registration still naming the old number is one the host sweeps to find
- * nothing, and here that is a roster nobody can see: sessions this module
- * started go on running with no page attached to them and no Stop to press.
+ * nothing, and here that is a container that cannot show its sessions'
+ * questions while they wait for an answer.
  * Rewriting the address keeps the decision the person made TRUE. It does not
  * make one.
  *
