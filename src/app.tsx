@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { messageMineResult, messageSendResult, type AgentMessage } from 'kehikot-module-protocol'
 import { ask } from 'kehikot-module-protocol/client'
-import { useHost } from 'kehikot-module-protocol/client/react'
+import { useHost, useKept, type KeepsFor } from 'kehikot-module-protocol/client/react'
 
 import { ID } from '../manifest.ts'
 import {
@@ -307,19 +307,35 @@ export function Orchestrator({ bridge, store = serverIntroStore, view, now: cloc
   )
 }
 
+const isView = (value: unknown): value is View => value === 'all' || value === 'questions' || value === 'working'
+
+/**
+ * The header's "show" switch, kept by the host for this container (protocol 2.51.0, `useKept` under
+ * the key `view`): the same Orchestrator on two kehikot shows two choices, and each is back after the
+ * app restarts. The open conversation is not kept: it decides whom the composer writes to, and a
+ * restart should not quietly address the next message to a session.
+ */
+export function useView(host: KeepsFor): [View, (press: { item: string; value?: unknown }) => true | string] {
+  const [view, setView] = useKept<View>(host, 'view', 'all', isView)
+  const press = (press: { item: string; value?: unknown }): true | string => {
+    if (press.item !== 'view') return 'This container has no such item.'
+    if (isView(press.value)) {
+      setView(press.value)
+      return true
+    }
+    return 'Show all sessions, the questions, or what they work on.'
+  }
+  return [view, press]
+}
+
 export function App() {
-  const [view, setView] = useState<View>('all')
+  const pressed = useRef<(press: { item: string; value?: unknown }) => true | string>(() => 'Not ready yet.')
   const host = useHost(ID, {
-    onPress: (press) => {
-      if (press.item !== 'view') return 'This container has no such item.'
-      if (press.value === 'all' || press.value === 'questions' || press.value === 'working') {
-        setView(press.value)
-        return true
-      }
-      return 'Show all sessions, the questions, or what they work on.'
-    },
+    onPress: (press) => pressed.current(press),
     onGoto: (_message, answerBack) => answerBack(false, 'This container holds conversations with agent sessions, not references.'),
   })
+  const [view, press] = useView(host)
+  pressed.current = press
   const { request, header, footer, activity, projectId, epic, kehikko, visible } = host
   const bridge = useMemo<Bridge>(
     () => ({

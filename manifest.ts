@@ -39,6 +39,8 @@ export const AGENT_SAYS =
  *   host's own Settings › Modules (`settings.ts`).
  * - **`activity:report`**: an unanswered question is a needs-you item in the Inbox until it is
  *   answered. Reports never ask for attention.
+ * - **`state:keep`**: the header's "show" switch, kept by the host per container (`state.set`), so it
+ *   is back after the app restarts.
  *
  * ## What it no longer is
  *
@@ -67,7 +69,7 @@ export const MANIFEST: Manifest = manifestSchema.parse({
   partless: 'A conversation with an agent session is the session’s, wherever it works, never a part of an epic.',
   declares: {
     protocol: `>=${PROTOCOL} <${PROTOCOL + 1}`,
-    uses: ['agents:message', 'messages:as-person', 'activity:report'],
+    uses: ['agents:message', 'messages:as-person', 'activity:report', 'state:keep'],
     storage: true,
     prompt: false,
     settings: SETTINGS,
