@@ -2,6 +2,48 @@ import { MANIFEST_KIND, PROTOCOL, manifestSchema, type Manifest } from 'kehikot-
 import pkg from './package.json'
 
 import { SETTINGS } from './settings.ts'
+/* This module's introduction (protocol 2.57.0): slides the host shows in its introduction dialog. Also
+   read as a file from the repository, so a person can watch it before the module runs or is installed. */
+import intro from './intro.json'
+
+/** "How to use" (protocol 2.52.0). Each string one line of plain text. */
+export const HELP = {
+  summary: 'Talk with your agent sessions in one place: answer their questions, write to them, and see what each is working on.',
+  sections: [
+    {
+      title: 'What it shows',
+      points: [
+        'One thread per agent session in the project: who it is, where it works, and whether it waits for you, works or is quiet. Questions waiting come first.',
+        'A question’s choices as buttons, and what each session last reported working on.',
+        'The header’s Show switch picks All sessions, Questions, or Working on. The footer says how many questions wait and how many agents work.',
+        'The page fits its container: one question with its choices when small, the threads beside the open conversation when there is room.',
+      ],
+    },
+    {
+      title: 'How to use it',
+      points: [
+        'Answer a question by pressing one of its choices, or by typing your own answer.',
+        'Pick a session to read its conversation and write to it, or write to every session on a kehikko, in an epic, or everyone.',
+        'Turn on Send messages to agent sessions as you in Kehikot’s Settings › Modules › Orchestrator before writing: it is off by default.',
+        'Each unanswered question is also in Kehikot’s Inbox, and leaves it once answered. Reports never ask for your attention.',
+      ],
+    },
+    {
+      title: 'What agents can do',
+      points: [
+        'Every session on a kehikko with the Orchestrator is told to send its questions, decisions and progress here with send_message, as a question with up to six choices or as a report.',
+        'What you send arrives in the session’s terminal as your own message. No agent can send as you.',
+      ],
+    },
+    {
+      title: 'Rules',
+      points: [
+        'A message is sent only when you press or type here, and only after you turned the setting on yourself.',
+        'Sessions belong to this computer, so nothing is kept in the project.',
+      ],
+    },
+  ],
+}
 
 export const ID = 'kehikot.orchestrator'
 /** The module's version: package.json's, the one place it is written. A release is tagged with it. */
@@ -61,6 +103,9 @@ export const MANIFEST: Manifest = manifestSchema.parse({
   tags: ['agents'],
   summary: 'Talk with your agent sessions in one place: answer their questions, message them, see what each is working on.',
   agentSays: AGENT_SAYS,
+  /* "How to use" (protocol 2.52.0), and the introduction (protocol 2.57.0). */
+  help: HELP,
+  intro,
   entry: '/app',
   modes: [
     { id: 'orchestrator', label: 'Messages', scope: 'project', scopeSays: 'the questions, reports and messages of the agent sessions in this project' },
