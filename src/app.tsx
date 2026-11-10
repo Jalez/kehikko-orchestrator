@@ -46,6 +46,8 @@ export interface Bridge {
   header(items: unknown[]): void
   footer(items: unknown[]): void
   activity(items: unknown[]): void
+  /** Say the page is drawn (protocol 2.70.0): the host's cover, held until then, comes off. Optional so a test can stand in. */
+  ready?(): void
   projectId: string | null
   epic: string | null
   kehikko: string | null
@@ -78,6 +80,8 @@ export function Orchestrator({ bridge, store = serverIntroStore, view, now: cloc
   const [said, setSaid] = useState<string | null>(null)
   const [trouble, setTrouble] = useState<string | null>(null)
   const [now, setNow] = useState(() => clock())
+  /* Whether the first read of the messages has come back, or failed. */
+  const [loaded, setLoaded] = useState(false)
   const introduced = useRef<Set<string>>(new Set())
   const last = useRef(0)
   const project = bridge.projectId
@@ -111,6 +115,7 @@ export function Orchestrator({ bridge, store = serverIntroStore, view, now: cloc
       setTrouble(`Could not read messages: ${refusedWords(error)}`)
     }
     setNow(clock())
+    setLoaded(true)
   }, [bridge, clock])
 
   useEffect(() => {
@@ -173,6 +178,11 @@ export function Orchestrator({ bridge, store = serverIntroStore, view, now: cloc
   }, [threads, openThread, bridge.kehikko, bridge.epic])
 
   useEffect(() => setTargetIndex(0), [open])
+
+  /* The host's cover is held until the page is drawn (protocol 2.70.0): once the first read has come back. */
+  useEffect(() => {
+    if (loaded) bridge.ready?.()
+  }, [loaded, bridge])
 
   useEffect(() => bridge.header(headerItems(view)), [bridge, view])
   useEffect(() => bridge.footer(footerItems(threads, trouble)), [bridge, threads, trouble])
@@ -242,7 +252,7 @@ export function Orchestrator({ bridge, store = serverIntroStore, view, now: cloc
   if (level === 'glance') {
     const first = asks[0]
     return (
-      <div ref={rootRef} className="bg-background text-foreground h-full overflow-auto p-2" data-level="glance">
+      <div ref={rootRef} data-kehikot-scroll className="bg-background text-foreground h-full overflow-auto p-2" data-level="glance">
         {first ? (
           <QuestionCard thread={first.thread} question={first.question} choose={choose} busy={busy} now={now} />
         ) : (
@@ -268,7 +278,7 @@ export function Orchestrator({ bridge, store = serverIntroStore, view, now: cloc
   if (level === 'list') {
     return (
       <div ref={rootRef} className="bg-background text-foreground flex h-full min-w-0 flex-col" data-level="list">
-        <div className="min-h-0 flex-1 overflow-auto">
+        <div data-kehikot-scroll className="min-h-0 flex-1 overflow-auto">
           {openThread ? (
             <>
               <button type="button" className="text-muted-foreground hover:text-foreground px-3 pt-2 text-xs" onClick={() => setOpen(null)}>
@@ -294,7 +304,7 @@ export function Orchestrator({ bridge, store = serverIntroStore, view, now: cloc
         <Board threads={threads} now={now} />
       </aside>
       <main className="flex min-h-0 min-w-0 flex-col">
-        <div className="min-h-0 flex-1 overflow-auto">
+        <div data-kehikot-scroll className="min-h-0 flex-1 overflow-auto">
           {openThread ? (
             <ThreadView thread={openThread} choose={choose} busy={busy} now={now} />
           ) : (
@@ -336,19 +346,20 @@ export function App() {
   })
   const [view, press] = useView(host)
   pressed.current = press
-  const { request, header, footer, activity, projectId, epic, kehikko, visible } = host
+  const { request, header, footer, activity, ready, projectId, epic, kehikko, visible } = host
   const bridge = useMemo<Bridge>(
     () => ({
       request: (method, params = {}) => request(method, params),
       header: (items) => header(items as never),
       footer: (items) => footer(items as never),
       activity: (items) => activity(items as never),
+      ready,
       projectId,
       epic,
       kehikko: kehikko?.key ?? null,
       visible,
     }),
-    [request, header, footer, activity, projectId, epic, kehikko?.key, visible],
+    [request, header, footer, activity, ready, projectId, epic, kehikko?.key, visible],
   )
   return <Orchestrator bridge={bridge} view={view} />
 }

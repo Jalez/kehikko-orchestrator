@@ -1,0 +1,42 @@
+[
+  {
+    "name": "no questions waiting",
+    "header": [
+      {
+        "kind": "switch",
+        "id": "view",
+        "label": "Show",
+        "value": "all",
+        "options": [
+          {
+            "id": "all",
+            "label": "All sessions"
+          },
+          {
+            "id": "questions",
+            "label": "Questions"
+          },
+          {
+            "id": "working",
+            "label": "Working on"
+          }
+        ],
+        "agents": true
+      }
+    ],
+    "footer": [
+      {
+        "kind": "text",
+        "id": "questions",
+        "text": "0 questions waiting"
+      },
+      {
+        "kind": "text",
+        "id": "working",
+        "text": "0 agents working",
+        "align": "center"
+      }
+    ],
+    "state": true
+  }
+]
