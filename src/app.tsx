@@ -252,7 +252,7 @@ export function Orchestrator({ bridge, store = serverIntroStore, view, now: cloc
   if (level === 'glance') {
     const first = asks[0]
     return (
-      <div ref={rootRef} data-kehikot-scroll className="bg-background text-foreground h-full overflow-auto p-2" data-level="glance">
+      <div data-kehikot-page ref={rootRef} data-kehikot-scroll className="text-foreground h-full overflow-auto p-2" data-level="glance">
         {first ? (
           <QuestionCard thread={first.thread} question={first.question} choose={choose} busy={busy} now={now} />
         ) : (
@@ -277,7 +277,7 @@ export function Orchestrator({ bridge, store = serverIntroStore, view, now: cloc
 
   if (level === 'list') {
     return (
-      <div ref={rootRef} className="bg-background text-foreground flex h-full min-w-0 flex-col" data-level="list">
+      <div data-kehikot-page ref={rootRef} className="text-foreground flex h-full min-w-0 flex-col" data-level="list">
         <div data-kehikot-scroll className="min-h-0 flex-1 overflow-auto">
           {openThread ? (
             <>
@@ -298,7 +298,7 @@ export function Orchestrator({ bridge, store = serverIntroStore, view, now: cloc
   }
 
   return (
-    <div ref={rootRef} className="bg-background text-foreground grid h-full min-w-0 grid-cols-[minmax(200px,2fr)_3fr]" data-level="full">
+    <div data-kehikot-page ref={rootRef} className="text-foreground grid h-full min-w-0 grid-cols-[minmax(200px,2fr)_3fr]" data-level="full">
       <aside className="border-border flex min-h-0 min-w-0 flex-col overflow-auto border-r">
         {list}
         <Board threads={threads} now={now} />
