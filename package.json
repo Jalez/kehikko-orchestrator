@@ -1,6 +1,6 @@
 {
   "name": "kehikko-orchestrator",
-  "version": "2.3.1",
+  "version": "2.3.2",
   "private": true,
   "type": "module",
   "description": "The person's one place to talk with their agent sessions: answer their questions, message them, see what each is working on. A Kehikot module.",

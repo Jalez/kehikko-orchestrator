@@ -8,7 +8,7 @@ export { MANIFEST }
 export type { Reply }
 
 /**
- * This module's own doors. Almost everything the Orchestrator does goes through the HOST — the
+ * This module's own doors. Almost everything Agent Questions does goes through the HOST — the
  * messages are the host's (protocol 2.50.0: `messages.mine`, `messages.post`, `messages.say`), and the
  * person's mark on a message is the host's to stamp. What is left here is small:
  *

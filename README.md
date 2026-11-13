@@ -1,4 +1,4 @@
-# Orchestrator
+# Agent Questions
 
 The person's one place to talk with their agent sessions: answer their questions, message them, and
 see what each is working on.
@@ -14,11 +14,11 @@ bun run register            # writes ~/Library/Application Support/Kehikot/modul
 
 ## What it does
 
-**Tells the sessions.** Every agent session on a kehikko the Orchestrator is on is told, in its notes,
+**Tells the sessions.** Every agent session on a kehikko Agent Questions is on is told, in its notes,
 to send its questions, decisions and progress reports here: `send_message` to
 `{module: "kehikot.orchestrator"}`, with `kind: "question"` (and up to six short `choices`) or
 `kind: "report"`. Sessions that were already running hear it too: the notes repeat a module's changed
-words, and the Orchestrator introduces itself once to each session at its kehikko (`messages.post` with
+words, and Agent Questions introduces itself once to each session at its kehikko (`messages.post` with
 `once`; the host hands each session at most one introduction, ever, and also reaches sessions that come
 to the kehikko later). The first time the person writes to a session that never wrote here, that
 introduction goes first.
@@ -30,8 +30,8 @@ last reported working on.
 **Sends as the person.** A choice pressed, or words typed to one session, a place (this kehikko, this
 epic) or every session, go as the person's own message (`messages.say`): the host marks it as theirs
 and the receiving agent module types it into the session framed "[Message from your person via
-Orchestrator]". The host sends one only on a press in this page, and only once the person has turned
-on **Send messages to agent sessions as you** in Kehikot's Settings › Modules › Orchestrator — off by
+Agent Questions]". The host sends one only on a press in this page, and only once the person has turned
+on **Send messages to agent sessions as you** in Kehikot's Settings › Modules › Agent Questions — off by
 default. No agent can send as the person.
 
 **Asks for attention only for questions.** Each unanswered question is a needs-you item in Kehikot's

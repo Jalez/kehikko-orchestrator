@@ -47,12 +47,12 @@ function standIn(start: AgentMessage[], introduced: string[] = []) {
         return { messages: kept.filter((one) => one.id > since), more: 0 }
       }
       if (method === 'messages.post') {
-        const one = message({ from: { module: ID, name: 'Orchestrator', session: null, place: { epic: null, parts: [], kehikko: null } }, to: params.to, body: params.body, once: true })
+        const one = message({ from: { module: ID, name: 'Agent Questions', session: null, place: { epic: null, parts: [], kehikko: null } }, to: params.to, body: params.body, once: true })
         kept.push(one)
         return { outcome: 'sent', id: one.id, why: '' }
       }
       if (method === 'messages.say') {
-        const one = message({ from: { module: ID, name: 'Orchestrator', session: null, place: { epic: null, parts: [], kehikko: null }, person: true }, ...params })
+        const one = message({ from: { module: ID, name: 'Agent Questions', session: null, place: { epic: null, parts: [], kehikko: null }, person: true }, ...params })
         kept.push(one)
         return { outcome: 'sent', id: one.id, why: '' }
       }
@@ -111,7 +111,7 @@ describe('the Orchestrator page', () => {
   })
 
   test('the first word to a session that never wrote here is preceded by the introduction, once', async () => {
-    const said = message({ from: { module: ID, name: 'Orchestrator', session: null, place: { epic: null, parts: [], kehikko: null }, person: true }, to: { session: { module: 'kehikot.vibe', session: 'v-1' } }, body: 'Are you there?' })
+    const said = message({ from: { module: ID, name: 'Agent Questions', session: null, place: { epic: null, parts: [], kehikko: null }, person: true }, to: { session: { module: 'kehikot.vibe', session: 'v-1' } }, body: 'Are you there?' })
     const host = standIn([said])
     render(<Orchestrator bridge={host.bridge} store={host.store} view="all" now={() => NOW} />)
     await settle()
@@ -167,6 +167,6 @@ describe('the Orchestrator page', () => {
     await settle()
     fireEvent.click(screen.getAllByRole('button', { name: 'Yes' })[0]!)
     await settle()
-    expect(screen.getByRole('status').textContent).toContain('Settings › Modules › Orchestrator')
+    expect(screen.getByRole('status').textContent).toContain('Settings › Modules › Agent Questions')
   })
 })
