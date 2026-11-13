@@ -321,7 +321,7 @@ const isView = (value: unknown): value is View => value === 'all' || value === '
 
 /**
  * The header's "show" switch, kept by the host for this container (protocol 2.51.0, `useKept` under
- * the key `view`): the same Orchestrator on two kehikot shows two choices, and each is back after the
+ * the key `view`): the same Agent Questions on two kehikot shows two choices, and each is back after the
  * app restarts. The open conversation is not kept: it decides whom the composer writes to, and a
  * restart should not quietly address the next message to a session.
  */

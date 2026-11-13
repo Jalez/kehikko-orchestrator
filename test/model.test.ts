@@ -35,7 +35,7 @@ const message = (over: Record<string, unknown> = {}): AgentMessage =>
     ...over,
   })
 const fromPerson = (over: Record<string, unknown> = {}): AgentMessage =>
-  message({ from: { module: ID, name: 'Orchestrator', session: null, place: { epic: null, parts: [], kehikko: null }, person: true }, to: { session: { module: 'kehikot.claude', session: 's1' } }, ...over })
+  message({ from: { module: ID, name: 'Agent Questions', session: null, place: { epic: null, parts: [], kehikko: null }, person: true }, to: { session: { module: 'kehikot.claude', session: 's1' } }, ...over })
 const codex = { module: 'kehikot.codex', name: 'Codex', session: 'c1', place: { epic: 'results', parts: [], kehikko: 'writing' } }
 
 describe('what agents are told', () => {
@@ -77,7 +77,7 @@ describe('threads', () => {
     expect(claude.place).toEqual({ epic: 'methods', kehikko: 'writing' })
   })
   test('the introductions are not drawn as messages', () => {
-    const intro = message({ from: { module: ID, name: 'Orchestrator', session: null, place: { epic: null, parts: [], kehikko: null } }, to: { session: { module: 'kehikot.claude', session: 's1' } }, once: true, body: INTRO })
+    const intro = message({ from: { module: ID, name: 'Agent Questions', session: null, place: { epic: null, parts: [], kehikko: null } }, to: { session: { module: 'kehikot.claude', session: 's1' } }, once: true, body: INTRO })
     expect(threadsOf([intro], NOW)).toEqual([])
   })
   test('unanswered questions first, the longest waiting first; then the most recent', () => {

@@ -18,7 +18,7 @@ import { ID } from '../manifest.ts'
  * most one, ever.
  */
 export const INTRO =
-  'I’m the Orchestrator on this kehikko — your person reads and answers here. Send questions, decisions and progress reports to me with '
+  'I’m Agent Questions on this kehikko — your person reads and answers here. Send questions, decisions and progress reports to me with '
   + `send_message to {"module": "${ID}"}: kind "question" (add up to ${LIMITS.MESSAGE_CHOICES} short choices when they fit), `
   + 'kind "report" for what you’re working on. Replies arrive in your terminal.'
 
@@ -283,4 +283,4 @@ export function targetWords(target: Target, threads: readonly Thread[]): string 
 
 /** The words a refusal from the host is turned into, for the person. */
 export const NOT_ALLOWED =
-  'Kehikot sends nothing as you from here yet. Turn on “Send messages to agent sessions as you” in Kehikot’s Settings › Modules › Orchestrator, then send again.'
+  'Kehikot sends nothing as you from here yet. Turn on “Send messages to agent sessions as you” in Kehikot’s Settings › Modules › Agent Questions, then send again.'

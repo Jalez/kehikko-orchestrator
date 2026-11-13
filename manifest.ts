@@ -24,14 +24,14 @@ export const HELP = {
       points: [
         'Answer a question by pressing one of its choices, or by typing your own answer.',
         'Pick a session to read its conversation and write to it, or write to every session on a kehikko, in an epic, or everyone.',
-        'Turn on Send messages to agent sessions as you in Kehikot’s Settings › Modules › Orchestrator before writing: it is off by default.',
+        'Turn on Send messages to agent sessions as you in Kehikot’s Settings › Modules › Agent Questions before writing: it is off by default.',
         'Each unanswered question is also in Kehikot’s Inbox, and leaves it once answered. Reports never ask for your attention.',
       ],
     },
     {
       title: 'What agents can do',
       points: [
-        'Every session on a kehikko with the Orchestrator is told to send its questions, decisions and progress here with send_message, as a question with up to six choices or as a report.',
+        'Every session on a kehikko with Agent Questions is told to send its questions, decisions and progress here with send_message, as a question with up to six choices or as a report.',
         'What you send arrives in the session’s terminal as your own message. No agent can send as you.',
       ],
     },
@@ -65,7 +65,7 @@ export const AGENT_SAYS =
   'Your person reads and answers you here. Send questions, decisions and progress reports with send_message to {module: "kehikot.orchestrator"}: kind "question" (with choices) or "report".'
 
 /**
- * What the Orchestrator is: the person's one place to talk with the agent sessions in a project.
+ * What Agent Questions is: the person's one place to talk with the agent sessions in a project.
  *
  * Sessions ask it questions and report what they work on through the host's messages (protocol
  * 2.50.0: `send_message` with `kind` and `choices`, addressed `to: { module: ID }`); the person
@@ -97,7 +97,7 @@ export const MANIFEST: Manifest = manifestSchema.parse({
   kind: MANIFEST_KIND,
   protocol: PROTOCOL,
   id: ID,
-  name: 'Orchestrator',
+  name: 'Agent Questions',
   icon: 'lucide:network',
   version: VERSION,
   tags: ['agents'],

@@ -17,7 +17,7 @@ export default defineConfig({
       manifest: MANIFEST,
       answer: (method, path, query, body, ticket) => answer(method, path, query, body, ticket),
       build: BUILD,
-      page: { title: 'Orchestrator', ticket: TICKET },
+      page: { title: 'Agent Questions', ticket: TICKET },
     }),
     react(),
     tailwindcss(),
